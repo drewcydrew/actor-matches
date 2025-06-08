@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -10,72 +10,135 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { Film } from "../api/tmdbApi";
+import { searchActor } from "../api/tmdbApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 
-interface FilmSearchProps {
-  onSelectFilm: (film: Film) => void;
-  initiallyExpanded?: boolean;
-  onExpandStateChange?: (isExpanded: boolean) => void;
-  selectedFilm?: Film | null;
+export interface Actor {
+  id: number;
+  name: string;
+  profile_path?: string;
+  known_for_department?: string;
+  popularity?: number;
+  known_for?: Array<{ title?: string; name?: string }>;
 }
 
-const FilmSearch = ({
-  onSelectFilm,
-  onExpandStateChange,
-  selectedFilm,
-}: FilmSearchProps) => {
-  // Get theme colors
-  const { colors } = useTheme();
+interface ActorSearchProps {
+  onSelectActor: (actor: Actor) => void;
+  selectedActor?: Actor | null;
+  defaultQuery?: string; // New prop to set initial search term
+  performInitialSearch?: boolean; // Flag to automatically perform search on mount
+  defaultActorId?: number; // Optional actor ID to pre-select
+}
 
-  // Regular state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [films, setFilms] = useState<Film[]>([]);
+const ActorSearch = ({
+  onSelectActor,
+  selectedActor,
+  defaultQuery = "",
+  performInitialSearch = false,
+  defaultActorId,
+}: ActorSearchProps) => {
+  const { colors } = useTheme();
+  const [searchQuery, setSearchQuery] = useState(defaultQuery);
+  const [actors, setActors] = useState<Actor[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  // Modal state (replacing expanded state)
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [initialSearchDone, setInitialSearchDone] = useState(false);
 
-  // Modal toggle function
-  const toggleModal = () => {
-    const newModalState = !isModalVisible;
-    setIsModalVisible(newModalState);
-
-    if (onExpandStateChange) {
-      onExpandStateChange(newModalState);
+  // Effect to handle initial search if requested
+  useEffect(() => {
+    if (performInitialSearch && defaultQuery && !initialSearchDone) {
+      searchActors();
+      setInitialSearchDone(true);
     }
+  }, []);
+
+  // Effect to handle pre-selecting an actor by ID
+  useEffect(() => {
+    const fetchActorById = async () => {
+      if (defaultActorId && !selectedActor) {
+        try {
+          setLoading(true);
+          // Use searchActor with the actor's name if available, otherwise use an empty string and filter results
+          const searchTerm = defaultQuery || "";
+          const personData = await searchActor(searchTerm);
+
+          if (personData.results && personData.results.length > 0) {
+            // Find the actor with the matching ID
+            const foundActor = personData.results.find(
+              (person: Actor) => person.id === defaultActorId
+            );
+
+            if (foundActor) {
+              onSelectActor(foundActor);
+              setInitialSearchDone(true);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch actor by ID:", err);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchActorById();
+  }, [defaultActorId]);
+
+  const toggleModal = () => {
+    setIsModalVisible(!isModalVisible);
   };
 
-  // Function to clear search
   const clearSearch = () => {
     setSearchQuery("");
-    setFilms([]);
+    setActors([]);
     setError("");
   };
 
-  const searchFilms = async () => {
+  const searchActors = async () => {
     if (!searchQuery.trim()) {
-      setError("Please enter a film title");
+      setError("Please enter an actor's name");
       return;
     }
 
     setLoading(true);
     setError("");
-    setFilms([]);
+    setActors([]);
 
     try {
-      const movieData = await tmdbApi.searchMovies(searchQuery);
+      const personData = await searchActor(searchQuery);
 
-      if (movieData.results && movieData.results.length > 0) {
-        setFilms(
-          movieData.results.sort(
-            (a: Film, b: Film) => b.popularity - a.popularity
+      if (personData.results && personData.results.length > 0) {
+        // Filter to acting roles and sort by popularity if available
+        const actorResults = personData.results
+          .filter(
+            (person: Actor) =>
+              !person.known_for_department ||
+              person.known_for_department === "Acting"
           )
-        );
+          .sort(
+            (a: Actor, b: Actor) => (b.popularity || 0) - (a.popularity || 0)
+          );
+
+        if (actorResults.length > 0) {
+          setActors(actorResults as Actor[]);
+
+          // If we have a defaultActorId and this is the initial search, select that actor
+          if (defaultActorId && !initialSearchDone) {
+            const defaultActor = actorResults.find(
+              (actor) => actor.id === defaultActorId
+            );
+            if (defaultActor) {
+              onSelectActor(defaultActor);
+              setInitialSearchDone(true);
+            }
+          }
+        } else {
+          setError("No actors found with that name");
+        }
       } else {
-        setError("No films found");
+        setError("No actors found");
       }
     } catch (err) {
       setError("An error occurred while searching");
@@ -85,65 +148,79 @@ const FilmSearch = ({
     }
   };
 
-  // Film item renderer
-  const renderFilm = ({ item }: { item: Film }) => (
+  const renderActor = ({ item }: { item: Actor }) => (
     <TouchableOpacity
       style={[
-        styles(colors).filmItem,
-        selectedFilm?.id === item.id ? styles(colors).selectedFilm : null,
+        styles(colors).actorItem,
+        selectedActor?.id === item.id ? styles(colors).selectedActor : null,
       ]}
       onPress={() => {
-        onSelectFilm(item);
-        setIsModalVisible(false); // Close modal after selection
+        onSelectActor(item);
+        setIsModalVisible(false);
       }}
       activeOpacity={0.7}
     >
-      {item.poster_path && (
+      {item.profile_path ? (
         <Image
           source={{
-            uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
+            uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
           }}
-          style={styles(colors).poster}
+          style={styles(colors).actorImage}
         />
+      ) : (
+        <View style={styles(colors).noImagePlaceholder}>
+          <Ionicons name="person" size={30} color={colors.textSecondary} />
+        </View>
       )}
-      <View style={styles(colors).filmDetails}>
-        <Text style={styles(colors).filmTitle}>{item.title || "Untitled"}</Text>
-        <Text style={styles(colors).filmYear}>
-          {item.release_date
-            ? new Date(item.release_date).getFullYear().toString()
-            : "Unknown"}
-        </Text>
+      <View style={styles(colors).actorDetails}>
+        <Text style={styles(colors).actorName}>{item.name || "Unknown"}</Text>
+        {item.known_for_department && (
+          <Text style={styles(colors).actorDepartment}>
+            {item.known_for_department}
+          </Text>
+        )}
+        {item.known_for && item.known_for.length > 0 && (
+          <Text
+            style={styles(colors).knownFor}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Known for:{" "}
+            {item.known_for
+              .map((work) => work.title || work.name)
+              .filter(Boolean)
+              .join(", ")}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );
 
-  // Function to generate header content for the collapsed view
   const getHeaderContent = () => {
-    if (selectedFilm) {
+    if (selectedActor) {
       return (
         <View style={styles(colors).collapsedHeader}>
-          {selectedFilm.poster_path && (
+          {selectedActor.profile_path ? (
             <Image
               source={{
-                uri: `https://image.tmdb.org/t/p/w92${selectedFilm.poster_path}`,
+                uri: `https://image.tmdb.org/t/p/w185${selectedActor.profile_path}`,
               }}
-              style={styles(colors).headerPoster}
+              style={styles(colors).headerPhoto}
             />
+          ) : (
+            <View style={styles(colors).headerNoImage}>
+              <Ionicons name="person" size={14} color={colors.textSecondary} />
+            </View>
           )}
           <View style={styles(colors).headerTextContainer}>
-            <Text style={styles(colors).headerFilmTitle} numberOfLines={1}>
-              {selectedFilm.title}
+            <Text style={styles(colors).headerActorName} numberOfLines={1}>
+              {selectedActor.name}
             </Text>
-            {selectedFilm.release_date && (
-              <Text style={styles(colors).headerFilmYear}>
-                {new Date(selectedFilm.release_date).getFullYear()}
-              </Text>
-            )}
           </View>
         </View>
       );
     } else {
-      return <Text style={styles(colors).sectionTitle}>Select a film</Text>;
+      return <Text style={styles(colors).sectionTitle}>Select an actor</Text>;
     }
   };
 
@@ -172,10 +249,9 @@ const FilmSearch = ({
       >
         <View style={styles(colors).modalOverlay}>
           <View style={styles(colors).modalContent}>
-            {/* Modal header */}
             <View style={styles(colors).modalHeader}>
               <Text style={styles(colors).modalTitle}>
-                {selectedFilm ? "Change film" : "Search films"}
+                {selectedActor ? "Change actor" : "Search actors"}
               </Text>
               <TouchableOpacity
                 style={styles(colors).closeButton}
@@ -185,13 +261,12 @@ const FilmSearch = ({
               </TouchableOpacity>
             </View>
 
-            {/* Search controls */}
             <View style={styles(colors).searchContainer}>
               <View style={styles(colors).inputRow}>
                 <View style={styles(colors).inputContainer}>
                   <TextInput
                     style={styles(colors).input}
-                    placeholder="Enter film title"
+                    placeholder="Enter actor name"
                     placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -212,7 +287,7 @@ const FilmSearch = ({
                 </View>
                 <TouchableOpacity
                   style={styles(colors).button}
-                  onPress={searchFilms}
+                  onPress={searchActors}
                 >
                   <Text style={styles(colors).buttonText}>Search</Text>
                 </TouchableOpacity>
@@ -220,19 +295,18 @@ const FilmSearch = ({
 
               {error ? <Text style={styles(colors).error}>{error}</Text> : null}
 
-              {/* Results area */}
               {loading ? (
                 <ActivityIndicator size="large" color={colors.primary} />
               ) : (
                 <FlatList
-                  data={films}
-                  renderItem={renderFilm}
+                  data={actors}
+                  renderItem={renderActor}
                   keyExtractor={(item) => item.id.toString()}
                   style={styles(colors).list}
                   ListEmptyComponent={
                     !error && !loading ? (
                       <Text style={styles(colors).emptyText}>
-                        Search for a film to see results
+                        Search for an actor to see results
                       </Text>
                     ) : null
                   }
@@ -246,7 +320,6 @@ const FilmSearch = ({
   );
 };
 
-// Updated styles to support modal
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
@@ -271,24 +344,29 @@ const styles = (colors: any) =>
       flexDirection: "row",
       alignItems: "center",
     },
-    headerPoster: {
-      width: 24,
-      height: 36,
+    headerPhoto: {
+      width: 30,
+      height: 30,
       marginRight: 8,
-      borderRadius: 2,
+      borderRadius: 15,
       backgroundColor: colors.placeholderBackground,
+    },
+    headerNoImage: {
+      width: 30,
+      height: 30,
+      marginRight: 8,
+      borderRadius: 15,
+      backgroundColor: colors.placeholderBackground,
+      justifyContent: "center",
+      alignItems: "center",
     },
     headerTextContainer: {
       flex: 1,
     },
-    headerFilmTitle: {
+    headerActorName: {
       fontSize: 16,
       fontWeight: "bold",
       color: colors.text,
-    },
-    headerFilmYear: {
-      fontSize: 12,
-      color: colors.textSecondary,
     },
     collapseButton: {
       padding: 4,
@@ -331,7 +409,6 @@ const styles = (colors: any) =>
     closeButton: {
       padding: 4,
     },
-    // Search container styles
     searchContainer: {
       flex: 1,
       padding: 16,
@@ -378,36 +455,52 @@ const styles = (colors: any) =>
     list: {
       flex: 1,
     },
-    // Film item styles
-    filmItem: {
-      padding: 8,
+    actorItem: {
+      padding: 10,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
       flexDirection: "row",
       backgroundColor: colors.background,
+      alignItems: "center",
     },
-    selectedFilm: {
+    selectedActor: {
       backgroundColor: colors.selectedItem,
     },
-    poster: {
-      width: 40,
-      height: 60,
-      marginRight: 8,
-      borderRadius: 4,
+    actorImage: {
+      width: 50,
+      height: 50,
+      marginRight: 10,
+      borderRadius: 25,
       backgroundColor: colors.placeholderBackground,
     },
-    filmDetails: {
+    noImagePlaceholder: {
+      width: 50,
+      height: 50,
+      marginRight: 10,
+      borderRadius: 25,
+      backgroundColor: colors.placeholderBackground,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    actorDetails: {
       flex: 1,
       justifyContent: "center",
     },
-    filmTitle: {
-      fontSize: 14,
+    actorName: {
+      fontSize: 16,
       fontWeight: "bold",
       color: colors.text,
+      marginBottom: 2,
     },
-    filmYear: {
+    actorDepartment: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    knownFor: {
       fontSize: 12,
       color: colors.textSecondary,
+      fontStyle: "italic",
     },
     error: {
       color: colors.error,
@@ -423,4 +516,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default FilmSearch;
+export default ActorSearch;

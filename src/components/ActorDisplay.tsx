@@ -3,29 +3,32 @@ import {
   StyleSheet,
   Text,
   View,
-  FlatList,
   ActivityIndicator,
   Image,
+  TouchableOpacity,
 } from "react-native";
 import tmdbApi, { CastMember } from "../api/tmdbApi";
 import { useFilmContext } from "../context/FilmContext";
 import { useTheme } from "../context/ThemeContext";
 
-interface ActorDisplayProps {}
+// Same interfaces as before
+interface ActorDisplayProps {
+  onActorSelect?: (actor: {
+    id: number;
+    name: string;
+    profile_path?: string;
+  }) => void;
+}
 
-// Extended CastMember to include roles from both films
 interface CommonCastMember extends CastMember {
   characterInFilm1?: string;
   characterInFilm2?: string;
 }
 
-const ActorDisplay = ({}: ActorDisplayProps) => {
-  // Get theme colors
+const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
+  // Keep all your existing states and hooks
   const { colors } = useTheme();
-
-  // Get selected films from context
   const { selectedFilm1, selectedFilm2 } = useFilmContext();
-
   const [castMembers, setCastMembers] = useState<CommonCastMember[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -136,45 +139,52 @@ const ActorDisplay = ({}: ActorDisplayProps) => {
   }, [selectedFilm1, selectedFilm2]);
 
   const renderCastMember = ({ item }: { item: CommonCastMember }) => (
-    <View style={styles(colors).actorItem}>
-      {item.profile_path ? (
-        <Image
-          source={{
-            uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
-          }}
-          style={styles(colors).actorImage}
-        />
-      ) : (
-        <View style={styles(colors).noImagePlaceholder}>
-          <Text style={styles(colors).noImageText}>No Image</Text>
-        </View>
-      )}
-      <View style={styles(colors).actorInfo}>
-        <Text style={styles(colors).actorName}>{item.name}</Text>
-
-        {/* Show different character info based on mode */}
-        {mode === "comparison" ? (
-          // Common cast mode - show both roles
-          <>
-            <Text style={styles(colors).character}>
-              {`in "${selectedFilm1?.title}": ${
-                item.characterInFilm1 || item.character || "Unknown role"
-              }`}
-            </Text>
-            <Text style={styles(colors).character}>
-              {`in "${selectedFilm2?.title}": ${
-                item.characterInFilm2 || item.character || "Unknown role"
-              }`}
-            </Text>
-          </>
+    <TouchableOpacity
+      style={styles(colors).actorItem}
+      onPress={() => onActorSelect && selectedFilm1 && onActorSelect(item)}
+      disabled={!onActorSelect || !selectedFilm1}
+      activeOpacity={onActorSelect && selectedFilm1 ? 0.7 : 1}
+    >
+      <View style={styles(colors).actorItem}>
+        {item.profile_path ? (
+          <Image
+            source={{
+              uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
+            }}
+            style={styles(colors).actorImage}
+          />
         ) : (
-          // Single film mode - just show the character
-          <Text style={styles(colors).character}>
-            {`as: ${item.character || "Unknown role"}`}
-          </Text>
+          <View style={styles(colors).noImagePlaceholder}>
+            <Text style={styles(colors).noImageText}>No Image</Text>
+          </View>
         )}
+        <View style={styles(colors).actorInfo}>
+          <Text style={styles(colors).actorName}>{item.name}</Text>
+
+          {/* Show different character info based on mode */}
+          {mode === "comparison" ? (
+            // Common cast mode - show both roles
+            <>
+              <Text style={styles(colors).character}>
+                {`in "${selectedFilm1?.title}": ${
+                  item.characterInFilm1 || item.character || "Unknown role"
+                }`}
+              </Text>
+              <Text style={styles(colors).character}>
+                {`in "${selectedFilm2?.title}": ${
+                  item.characterInFilm2 || item.character || "Unknown role"
+                }`}
+              </Text>
+            </>
+          ) : (
+            // Single film mode - just show the character
+            <Text style={styles(colors).character}>
+              {`as: ${item.character || "Unknown role"}`}
+            </Text>
+          )}
+        </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   // Title text based on film selection state
@@ -201,31 +211,71 @@ const ActorDisplay = ({}: ActorDisplayProps) => {
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} />
       ) : (
-        <FlatList
-          data={castMembers}
-          renderItem={renderCastMember}
-          keyExtractor={(item) => item.id.toString()}
-          style={styles(colors).list}
-          ListEmptyComponent={
-            !error && !loading && !selectedFilm1 && !selectedFilm2 ? (
-              <Text style={styles(colors).emptyText}>
-                Select at least one film above to see cast members
-              </Text>
-            ) : !error &&
-              !loading &&
-              selectedFilm1 &&
-              selectedFilm2 &&
-              castMembers.length === 0 ? (
-              <Text style={styles(colors).emptyText}>
-                No common cast members found
-              </Text>
-            ) : !error && !loading && castMembers.length === 0 ? (
-              <Text style={styles(colors).emptyText}>
-                No cast information available
-              </Text>
-            ) : null
-          }
-        />
+        <View style={styles(colors).castContainer}>
+          {castMembers.length === 0 && !error && !loading ? (
+            <Text style={styles(colors).emptyText}>
+              {!selectedFilm1 && !selectedFilm2
+                ? "Select at least one film above to see cast members"
+                : selectedFilm1 && selectedFilm2
+                ? "No common cast members found"
+                : "No cast information available"}
+            </Text>
+          ) : (
+            castMembers.map((item) => (
+              <TouchableOpacity
+                key={item.id.toString()}
+                style={styles(colors).actorItem}
+                onPress={() =>
+                  onActorSelect && selectedFilm1 && onActorSelect(item)
+                }
+                disabled={!onActorSelect || !selectedFilm1}
+                activeOpacity={onActorSelect && selectedFilm1 ? 0.7 : 1}
+              >
+                <View style={styles(colors).actorItem}>
+                  {item.profile_path ? (
+                    <Image
+                      source={{
+                        uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
+                      }}
+                      style={styles(colors).actorImage}
+                    />
+                  ) : (
+                    <View style={styles(colors).noImagePlaceholder}>
+                      <Text style={styles(colors).noImageText}>No Image</Text>
+                    </View>
+                  )}
+                  <View style={styles(colors).actorInfo}>
+                    <Text style={styles(colors).actorName}>{item.name}</Text>
+
+                    {/* Show different character info based on mode */}
+                    {mode === "comparison" ? (
+                      <>
+                        <Text style={styles(colors).character}>
+                          {`in "${selectedFilm1?.title}": ${
+                            item.characterInFilm1 ||
+                            item.character ||
+                            "Unknown role"
+                          }`}
+                        </Text>
+                        <Text style={styles(colors).character}>
+                          {`in "${selectedFilm2?.title}": ${
+                            item.characterInFilm2 ||
+                            item.character ||
+                            "Unknown role"
+                          }`}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles(colors).character}>
+                        {`as: ${item.character || "Unknown role"}`}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
       )}
     </View>
   );
@@ -247,7 +297,7 @@ const styles = (colors: any) =>
       marginVertical: 8,
       color: colors.text,
     },
-    list: {
+    castContainer: {
       flex: 1,
     },
     actorItem: {
@@ -301,6 +351,9 @@ const styles = (colors: any) =>
       marginTop: 20,
       color: colors.textSecondary,
       fontSize: 14,
+    },
+    list: {
+      flex: 1,
     },
   });
 
