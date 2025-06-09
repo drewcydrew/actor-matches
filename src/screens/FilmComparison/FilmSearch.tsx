@@ -10,12 +10,13 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { Film } from "../api/tmdbApi";
+import { Film } from "../../api/tmdbApi";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../context/ThemeContext";
+import { useTheme } from "../../context/ThemeContext";
+import { useFilmContext } from "../../context/FilmContext";
 
 interface FilmSearchProps {
-  onSelectFilm: (film: Film) => void;
+  onSelectFilm: (film: Film | null) => void; // Updated to accept null
   initiallyExpanded?: boolean;
   onExpandStateChange?: (isExpanded: boolean) => void;
   selectedFilm?: Film | null;
@@ -26,8 +27,9 @@ const FilmSearch = ({
   onExpandStateChange,
   selectedFilm,
 }: FilmSearchProps) => {
-  // Get theme colors
+  // Get theme colors and film context
   const { colors } = useTheme();
+  const { searchFilms } = useFilmContext();
 
   // Regular state
   const [searchQuery, setSearchQuery] = useState("");
@@ -37,6 +39,13 @@ const FilmSearch = ({
 
   // Modal state (replacing expanded state)
   const [isModalVisible, setIsModalVisible] = useState(false);
+
+  // Handle clear film selection
+  const handleClearFilm = (event: any) => {
+    // Stop the event from propagating to parent (which would open the modal)
+    event.stopPropagation();
+    onSelectFilm(null);
+  };
 
   // Modal toggle function
   const toggleModal = () => {
@@ -55,7 +64,8 @@ const FilmSearch = ({
     setError("");
   };
 
-  const searchFilms = async () => {
+  // Function to handle film search
+  const handleSearchFilms = async () => {
     if (!searchQuery.trim()) {
       setError("Please enter a film title");
       return;
@@ -66,14 +76,12 @@ const FilmSearch = ({
     setFilms([]);
 
     try {
-      const movieData = await tmdbApi.searchMovies(searchQuery);
+      const { results, error: searchError } = await searchFilms(searchQuery);
 
-      if (movieData.results && movieData.results.length > 0) {
-        setFilms(
-          movieData.results.sort(
-            (a: Film, b: Film) => b.popularity - a.popularity
-          )
-        );
+      if (searchError) {
+        setError(searchError);
+      } else if (results.length > 0) {
+        setFilms(results);
       } else {
         setError("No films found");
       }
@@ -157,19 +165,35 @@ const FilmSearch = ({
           activeOpacity={0.7}
         >
           {getHeaderContent()}
-          <View style={styles(colors).collapseButton}>
-            <Ionicons name="search" size={24} color={colors.primary} />
+          <View style={styles(colors).actionButtons}>
+            {selectedFilm && (
+              <TouchableOpacity
+                style={styles(colors).clearButton}
+                onPress={handleClearFilm}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+            <View style={styles(colors).collapseButton}>
+              <Ionicons name="search" size={24} color={colors.primary} />
+            </View>
           </View>
         </TouchableOpacity>
       </View>
 
-      {/* Modal for search functionality */}
+      {/* Modal for search functionality - unchanged */}
       <Modal
         visible={isModalVisible}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setIsModalVisible(false)}
       >
+        {/* Modal content unchanged */}
         <View style={styles(colors).modalOverlay}>
           <View style={styles(colors).modalContent}>
             {/* Modal header */}
@@ -187,6 +211,7 @@ const FilmSearch = ({
 
             {/* Search controls */}
             <View style={styles(colors).searchContainer}>
+              {/* ...rest of the modal content (unchanged) */}
               <View style={styles(colors).inputRow}>
                 <View style={styles(colors).inputContainer}>
                   <TextInput
@@ -199,7 +224,7 @@ const FilmSearch = ({
                   />
                   {searchQuery.length > 0 && (
                     <TouchableOpacity
-                      style={styles(colors).clearButton}
+                      style={styles(colors).searchClearButton}
                       onPress={clearSearch}
                     >
                       <Ionicons
@@ -212,7 +237,7 @@ const FilmSearch = ({
                 </View>
                 <TouchableOpacity
                   style={styles(colors).button}
-                  onPress={searchFilms}
+                  onPress={handleSearchFilms}
                 >
                   <Text style={styles(colors).buttonText}>Search</Text>
                 </TouchableOpacity>
@@ -246,7 +271,7 @@ const FilmSearch = ({
   );
 };
 
-// Updated styles to support modal
+// Updated styles
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
@@ -290,17 +315,26 @@ const styles = (colors: any) =>
       fontSize: 12,
       color: colors.textSecondary,
     },
+    actionButtons: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
     collapseButton: {
       padding: 4,
       marginLeft: 8,
     },
-    // Modal styles
+    clearButton: {
+      padding: 4,
+      marginRight: 4,
+    },
+    // Modal styles remain the same
     modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
       justifyContent: "center",
       alignItems: "center",
     },
+    // ...existing styles
     modalContent: {
       width: "90%",
       maxHeight: "80%",
@@ -358,7 +392,7 @@ const styles = (colors: any) =>
       height: "100%",
       paddingRight: 24,
     },
-    clearButton: {
+    searchClearButton: {
       padding: 3,
       justifyContent: "center",
       alignItems: "center",

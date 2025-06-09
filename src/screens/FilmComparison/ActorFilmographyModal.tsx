@@ -9,11 +9,11 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { Film } from "../api/tmdbApi";
-import { useTheme } from "../context/ThemeContext";
+import tmdbApi, { Film } from "../../api/tmdbApi";
+import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
-interface ActorFilmographyProps {
+interface ActorFilmographyModalProps {
   actorId: number;
   actorName?: string;
   onSelectFilm1: (film: Film) => void;
@@ -24,7 +24,7 @@ interface ActorFilmographyProps {
   selectedFilm2?: Film | null;
 }
 
-const ActorFilmography = ({
+const ActorFilmographyModal = ({
   actorId,
   actorName = "Actor",
   onSelectFilm1,
@@ -33,7 +33,7 @@ const ActorFilmography = ({
   onClose,
   selectedFilm1,
   selectedFilm2,
-}: ActorFilmographyProps) => {
+}: ActorFilmographyModalProps) => {
   const { colors } = useTheme();
   const [films, setFilms] = useState<Film[]>([]);
   const [loading, setLoading] = useState(true);
@@ -405,4 +405,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default ActorFilmography;
+export default ActorFilmographyModal;

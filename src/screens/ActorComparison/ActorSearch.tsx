@@ -10,25 +10,16 @@ import {
   Image,
   Modal,
 } from "react-native";
-import { searchActor } from "../api/tmdbApi";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../context/ThemeContext";
-
-export interface Actor {
-  id: number;
-  name: string;
-  profile_path?: string;
-  known_for_department?: string;
-  popularity?: number;
-  known_for?: Array<{ title?: string; name?: string }>;
-}
+import { useTheme } from "../../context/ThemeContext";
+import { useFilmContext, Actor } from "../../context/FilmContext";
 
 interface ActorSearchProps {
-  onSelectActor: (actor: Actor) => void;
+  onSelectActor: (actor: Actor | null) => void; // Updated to accept null
   selectedActor?: Actor | null;
-  defaultQuery?: string; // New prop to set initial search term
-  performInitialSearch?: boolean; // Flag to automatically perform search on mount
-  defaultActorId?: number; // Optional actor ID to pre-select
+  defaultQuery?: string;
+  performInitialSearch?: boolean;
+  defaultActorId?: number;
 }
 
 const ActorSearch = ({
@@ -39,6 +30,8 @@ const ActorSearch = ({
   defaultActorId,
 }: ActorSearchProps) => {
   const { colors } = useTheme();
+  const { searchActors } = useFilmContext();
+
   const [searchQuery, setSearchQuery] = useState(defaultQuery);
   const [actors, setActors] = useState<Actor[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,10 +39,17 @@ const ActorSearch = ({
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [initialSearchDone, setInitialSearchDone] = useState(false);
 
+  // Handle clear actor selection
+  const handleClearActor = (event: any) => {
+    // Stop the event from propagating to parent (which would open the modal)
+    event.stopPropagation();
+    onSelectActor(null);
+  };
+
   // Effect to handle initial search if requested
   useEffect(() => {
     if (performInitialSearch && defaultQuery && !initialSearchDone) {
-      searchActors();
+      handleSearchActors();
       setInitialSearchDone(true);
     }
   }, []);
@@ -60,13 +60,14 @@ const ActorSearch = ({
       if (defaultActorId && !selectedActor) {
         try {
           setLoading(true);
-          // Use searchActor with the actor's name if available, otherwise use an empty string and filter results
           const searchTerm = defaultQuery || "";
-          const personData = await searchActor(searchTerm);
+          const { results, error: searchError } = await searchActors(
+            searchTerm
+          );
 
-          if (personData.results && personData.results.length > 0) {
+          if (!searchError && results.length > 0) {
             // Find the actor with the matching ID
-            const foundActor = personData.results.find(
+            const foundActor = results.find(
               (person: Actor) => person.id === defaultActorId
             );
 
@@ -96,7 +97,7 @@ const ActorSearch = ({
     setError("");
   };
 
-  const searchActors = async () => {
+  const handleSearchActors = async () => {
     if (!searchQuery.trim()) {
       setError("Please enter an actor's name");
       return;
@@ -107,35 +108,22 @@ const ActorSearch = ({
     setActors([]);
 
     try {
-      const personData = await searchActor(searchQuery);
+      const { results, error: searchError } = await searchActors(searchQuery);
 
-      if (personData.results && personData.results.length > 0) {
-        // Filter to acting roles and sort by popularity if available
-        const actorResults = personData.results
-          .filter(
-            (person: Actor) =>
-              !person.known_for_department ||
-              person.known_for_department === "Acting"
-          )
-          .sort(
-            (a: Actor, b: Actor) => (b.popularity || 0) - (a.popularity || 0)
+      if (searchError) {
+        setError(searchError);
+      } else if (results.length > 0) {
+        setActors(results);
+
+        // If we have a defaultActorId and this is the initial search, select that actor
+        if (defaultActorId && !initialSearchDone) {
+          const defaultActor = results.find(
+            (actor) => actor.id === defaultActorId
           );
-
-        if (actorResults.length > 0) {
-          setActors(actorResults as Actor[]);
-
-          // If we have a defaultActorId and this is the initial search, select that actor
-          if (defaultActorId && !initialSearchDone) {
-            const defaultActor = actorResults.find(
-              (actor) => actor.id === defaultActorId
-            );
-            if (defaultActor) {
-              onSelectActor(defaultActor);
-              setInitialSearchDone(true);
-            }
+          if (defaultActor) {
+            onSelectActor(defaultActor);
+            setInitialSearchDone(true);
           }
-        } else {
-          setError("No actors found with that name");
         }
       } else {
         setError("No actors found");
@@ -234,8 +222,24 @@ const ActorSearch = ({
           activeOpacity={0.7}
         >
           {getHeaderContent()}
-          <View style={styles(colors).collapseButton}>
-            <Ionicons name="search" size={24} color={colors.primary} />
+
+          <View style={styles(colors).actionButtons}>
+            {selectedActor && (
+              <TouchableOpacity
+                style={styles(colors).clearButton}
+                onPress={handleClearActor}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name="close-circle"
+                  size={20}
+                  color={colors.primary}
+                />
+              </TouchableOpacity>
+            )}
+            <View style={styles(colors).collapseButton}>
+              <Ionicons name="search" size={24} color={colors.primary} />
+            </View>
           </View>
         </TouchableOpacity>
       </View>
@@ -274,7 +278,7 @@ const ActorSearch = ({
                   />
                   {searchQuery.length > 0 && (
                     <TouchableOpacity
-                      style={styles(colors).clearButton}
+                      style={styles(colors).searchClearButton}
                       onPress={clearSearch}
                     >
                       <Ionicons
@@ -287,7 +291,7 @@ const ActorSearch = ({
                 </View>
                 <TouchableOpacity
                   style={styles(colors).button}
-                  onPress={searchActors}
+                  onPress={handleSearchActors}
                 >
                   <Text style={styles(colors).buttonText}>Search</Text>
                 </TouchableOpacity>
@@ -320,8 +324,10 @@ const ActorSearch = ({
   );
 };
 
+// Updated styles
 const styles = (colors: any) =>
   StyleSheet.create({
+    // Existing styles
     container: {
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
@@ -368,9 +374,18 @@ const styles = (colors: any) =>
       fontWeight: "bold",
       color: colors.text,
     },
+    // New buttons container
+    actionButtons: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
     collapseButton: {
       padding: 4,
       marginLeft: 8,
+    },
+    clearButton: {
+      padding: 4,
+      marginRight: 4,
     },
     // Modal styles
     modalOverlay: {
@@ -435,7 +450,8 @@ const styles = (colors: any) =>
       height: "100%",
       paddingRight: 24,
     },
-    clearButton: {
+    searchClearButton: {
+      // Renamed from clearButton to avoid conflicts
       padding: 3,
       justifyContent: "center",
       alignItems: "center",

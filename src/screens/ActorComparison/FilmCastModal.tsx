@@ -9,8 +9,8 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { CastMember } from "../api/tmdbApi";
-import { useTheme } from "../context/ThemeContext";
+import tmdbApi, { CastMember } from "../../api/tmdbApi";
+import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
 // Define an Actor interface for our component
@@ -21,7 +21,7 @@ export interface Actor {
   character?: string;
 }
 
-interface FilmCastProps {
+interface FilmCastModalProps {
   filmId: number;
   filmTitle?: string;
   onSelectActor1: (actor: Actor) => void;
@@ -32,7 +32,7 @@ interface FilmCastProps {
   selectedActor2?: Actor | null;
 }
 
-const FilmCast = ({
+const FilmCastModal = ({
   filmId,
   filmTitle = "Film",
   onSelectActor1,
@@ -41,7 +41,7 @@ const FilmCast = ({
   onClose,
   selectedActor1,
   selectedActor2,
-}: FilmCastProps) => {
+}: FilmCastModalProps) => {
   const { colors } = useTheme();
   const [cast, setCast] = useState<CastMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -432,4 +432,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default FilmCast;
+export default FilmCastModal;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,8 +7,10 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import tmdbApi, { Film } from "../api/tmdbApi";
-import { useTheme } from "../context/ThemeContext";
+import { Film } from "../../api/tmdbApi";
+import { useTheme } from "../../context/ThemeContext";
+import { useFilmContext } from "../../context/FilmContext";
+import { Ionicons } from "@expo/vector-icons";
 
 // Define our props
 interface FilmDisplayProps {
@@ -19,12 +21,6 @@ interface FilmDisplayProps {
   onFilmSelect?: (film: Film) => void;
 }
 
-// Extended Film interface to include character information
-interface CommonFilm extends Film {
-  characterForActor1?: string;
-  characterForActor2?: string;
-}
-
 const FilmDisplay = ({
   actor1Id,
   actor2Id,
@@ -33,119 +29,24 @@ const FilmDisplay = ({
   onFilmSelect,
 }: FilmDisplayProps) => {
   const { colors } = useTheme();
-  const [commonFilms, setCommonFilms] = useState<CommonFilm[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const {
+    commonFilms,
+    filmsLoading,
+    filmsError,
+    getActorFilmography,
+    setSelectedCastMember1,
+    setSelectedCastMember2,
+  } = useFilmContext();
 
+  // Add function to clear both actors
+  const handleClearActors = () => {
+    setSelectedCastMember1(null);
+    setSelectedCastMember2(null);
+  };
+
+  // Fetch filmography data when actor props change
   useEffect(() => {
-    const fetchCommonFilms = async () => {
-      // Reset state
-      setCommonFilms([]);
-      setError("");
-
-      // Case 1: No actors selected
-      if (!actor1Id && !actor2Id) {
-        return;
-      }
-
-      // Case 2: Only one actor selected - show their films
-      if ((actor1Id && !actor2Id) || (!actor1Id && actor2Id)) {
-        const selectedActorId = actor1Id || actor2Id;
-        const selectedActorName = actor1Id ? actor1Name : actor2Name;
-
-        if (!selectedActorId) return; // TypeScript safety
-
-        setLoading(true);
-
-        try {
-          const creditsData = await tmdbApi.getActorMovieCredits(
-            selectedActorId
-          );
-
-          if (creditsData.cast && creditsData.cast.length > 0) {
-            // Sort by popularity and add character information
-            const actorFilms = creditsData.cast
-              .filter((film) => film.release_date) // Filter out films with no release date
-              .map((film) => ({
-                ...film,
-                characterForActor1: actor1Id ? film.character : undefined,
-                characterForActor2: actor2Id ? film.character : undefined,
-              }))
-              .sort((a, b) => b.popularity - a.popularity);
-
-            setCommonFilms(actorFilms);
-          } else {
-            setError(`No films found for ${selectedActorName}`);
-          }
-        } catch (err) {
-          setError("Error fetching actor's filmography");
-          console.error(err);
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Case 3: Both actors selected - find common films
-      if (actor1Id && actor2Id) {
-        setLoading(true);
-
-        try {
-          // Fetch credits for both actors
-          const actor1Credits = await tmdbApi.getActorMovieCredits(actor1Id);
-          const actor2Credits = await tmdbApi.getActorMovieCredits(actor2Id);
-
-          if (
-            actor1Credits.cast &&
-            actor2Credits.cast &&
-            actor1Credits.cast.length > 0 &&
-            actor2Credits.cast.length > 0
-          ) {
-            // Create map of films from first actor for fast lookup
-            const filmsMap = new Map();
-            actor1Credits.cast.forEach((film) => {
-              if (film.release_date) {
-                // Filter out films with no release date
-                filmsMap.set(film.id, {
-                  ...film,
-                  characterForActor1: film.character || "Unknown role",
-                });
-              }
-            });
-
-            // Find films that both actors appeared in
-            const matchingFilms = actor2Credits.cast
-              .filter((film) => filmsMap.has(film.id) && film.release_date)
-              .map((film) => {
-                const filmWithActor1 = filmsMap.get(film.id);
-                return {
-                  ...filmWithActor1,
-                  characterForActor2: film.character || "Unknown role",
-                };
-              });
-
-            if (matchingFilms.length > 0) {
-              setCommonFilms(
-                matchingFilms.sort((a, b) => b.popularity - a.popularity)
-              );
-            } else {
-              setError(
-                `${actor1Name} and ${actor2Name} haven't appeared in any films together`
-              );
-            }
-          } else {
-            setError("Filmography not available for one or both actors");
-          }
-        } catch (err) {
-          setError("Error fetching filmography information");
-          console.error(err);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchCommonFilms();
+    getActorFilmography(actor1Id, actor2Id, actor1Name, actor2Name);
   }, [actor1Id, actor2Id, actor1Name, actor2Name]);
 
   // Title text based on actor selection state
@@ -163,17 +64,35 @@ const FilmDisplay = ({
     }
   };
 
+  // Determine if we should show the clear button (when at least one actor is selected)
+  const shouldShowClearButton = actor1Id || actor2Id;
+
   return (
     <View style={styles(colors).container}>
-      <Text style={styles(colors).title}>{getTitleText()}</Text>
+      <View style={styles(colors).headerContainer}>
+        <Text style={styles(colors).title}>{getTitleText()}</Text>
 
-      {error ? <Text style={styles(colors).error}>{error}</Text> : null}
+        {shouldShowClearButton && (
+          <TouchableOpacity
+            style={styles(colors).clearButton}
+            onPress={handleClearActors}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close-circle" size={16} color={colors.primary} />
+            <Text style={styles(colors).clearButtonText}>Clear All</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
-      {loading ? (
+      {filmsError ? (
+        <Text style={styles(colors).error}>{filmsError}</Text>
+      ) : null}
+
+      {filmsLoading ? (
         <ActivityIndicator size="large" color={colors.primary} />
       ) : (
         <View style={styles(colors).filmsContainer}>
-          {commonFilms.length === 0 && !error && !loading ? (
+          {commonFilms.length === 0 && !filmsError && !filmsLoading ? (
             <Text style={styles(colors).emptyText}>
               {!actor1Id && !actor2Id
                 ? "Select actors above to see their common films"
@@ -249,12 +168,32 @@ const styles = (colors: any) =>
       width: "100%",
       backgroundColor: colors.background,
     },
+    headerContainer: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginVertical: 8,
+    },
     title: {
       fontSize: 18,
       fontWeight: "bold",
-      textAlign: "center",
-      marginVertical: 8,
       color: colors.text,
+      flex: 1,
+    },
+    clearButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 6,
+      borderRadius: 16,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    clearButtonText: {
+      color: colors.primary,
+      fontSize: 12,
+      fontWeight: "500",
+      marginLeft: 4,
     },
     filmsContainer: {
       flex: 1,
