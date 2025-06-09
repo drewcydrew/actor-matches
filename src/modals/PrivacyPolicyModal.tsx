@@ -53,65 +53,37 @@ const PrivacyPolicyModal = ({
             <Text style={styles(colors).sectionTitle}>Introduction</Text>
             <Text style={styles(colors).paragraph}>
               Thank you for using {appName}. This Privacy Policy explains how we
-              collect, use, disclose, and safeguard your information when you
-              use our mobile application and website. Please read this Privacy
-              Policy carefully.
+              handle your information when you use our application.
             </Text>
 
-            <Text style={styles(colors).sectionTitle}>
-              Information We Collect
-            </Text>
+            <Text style={styles(colors).sectionTitle}>No Data Collection</Text>
             <Text style={styles(colors).paragraph}>
-              <Text style={styles(colors).bold}>Personal Data:</Text> We do not
-              collect personally identifiable information unless you explicitly
-              provide it.
+              {appName} does not collect any personal information or usage data
+              from you. All your interactions with the app remain private.
             </Text>
-            <Text style={styles(colors).paragraph}>
-              <Text style={styles(colors).bold}>Usage Data:</Text> We may
-              collect anonymous usage statistics to improve our service,
-              including:
-            </Text>
-            <View style={styles(colors).bulletList}>
-              <Text style={styles(colors).bulletItem}>
-                • Search queries for actors and films
-              </Text>
-              <Text style={styles(colors).bulletItem}>
-                • App feature usage patterns
-              </Text>
-              <Text style={styles(colors).bulletItem}>
-                • Device type and operating system
-              </Text>
-            </View>
 
             <Text style={styles(colors).sectionTitle}>
               Third-Party Services
             </Text>
             <Text style={styles(colors).paragraph}>
               Our application uses The Movie Database (TMDb) API to provide film
-              and actor information. Your use of the app is also subject to
-              TMDb's privacy policy. We also use analytics services to improve
-              app performance and user experience.
+              and actor information. When you search for content within our app,
+              these queries are sent to TMDb's servers according to their API
+              terms. Please refer to TMDb's privacy policy for information on
+              how they handle this data.
             </Text>
 
-            <Text style={styles(colors).sectionTitle}>Data Storage</Text>
+            <Text style={styles(colors).sectionTitle}>Local Storage</Text>
             <Text style={styles(colors).paragraph}>
-              Your search history and preferences may be stored locally on your
-              device to improve your experience. This data is not transmitted to
-              our servers.
-            </Text>
-
-            <Text style={styles(colors).sectionTitle}>Security</Text>
-            <Text style={styles(colors).paragraph}>
-              We value your trust in providing us your information, thus we
-              strive to use commercially acceptable means of protecting it.
-              However, no method of transmission over the internet or electronic
-              storage is 100% secure and reliable.
+              Any search history or preferences are stored locally on your
+              device to improve your experience. This data stays on your device
+              and is not transmitted to our servers or any third parties (except
+              for the actual search queries to TMDb as mentioned above).
             </Text>
 
             <Text style={styles(colors).sectionTitle}>Children's Privacy</Text>
             <Text style={styles(colors).paragraph}>
-              Our service is not intended for anyone under the age of 13. We do
-              not knowingly collect personal information from children under 13.
+              Our service is not intended for anyone under the age of 13.
             </Text>
 
             <Text style={styles(colors).sectionTitle}>
@@ -129,8 +101,19 @@ const PrivacyPolicyModal = ({
               contact us at:
             </Text>
             <Text style={styles(colors).contactInfo}>
-              support@actormatches.com
+              andrewjovaras@gmail.com
             </Text>
+
+            <View style={styles(colors).acceptButtonContainer}>
+              <TouchableOpacity
+                style={styles(colors).acceptButton}
+                onPress={onClose}
+              >
+                <Text style={styles(colors).acceptButtonText}>
+                  I Understand
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -218,6 +201,22 @@ const styles = (colors: any) =>
       color: colors.primary,
       marginBottom: 16,
       textAlign: "center",
+    },
+    acceptButtonContainer: {
+      marginTop: 20,
+      marginBottom: 10,
+      alignItems: "center",
+    },
+    acceptButton: {
+      backgroundColor: colors.primary,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 8,
+    },
+    acceptButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
     },
   });
 
