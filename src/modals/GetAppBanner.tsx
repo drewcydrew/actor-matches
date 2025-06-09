@@ -21,7 +21,7 @@ interface GetAppBannerProps {
 }
 
 const GetAppBanner = ({
-  androidUrl = "https://expo.dev/accounts/drew92/projects/actormatches/builds/eab4c3a1-073b-4414-8e56-df6bb3eafa9c",
+  androidUrl = "https://play.google.com/apps/testing/com.drew92.actormatches",
   androidTestersGroupUrl = "https://groups.google.com/g/i-am-db-testers",
   iosUrl = "https://testflight.apple.com/join/9rHGtzmn",
 }: GetAppBannerProps) => {
