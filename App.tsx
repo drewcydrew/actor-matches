@@ -19,7 +19,7 @@ export default function App() {
         <FilmProvider>
           <MainScreen />
           <GetAppBanner
-            androidUrl="https://expo.dev/accounts/drew92/projects/actormatches/builds/cefb4b15-4af5-4c29-a9cc-343a6f0f9d5a"
+            androidUrl="https://expo.dev/accounts/drew92/projects/actormatches/builds/eab4c3a1-073b-4414-8e56-df6bb3eafa9c"
             iosUrl="https://testflight.apple.com/join/9rHGtzmn"
           />
           <SplashScreen isVisible={showSplash} onFinish={handleSplashFinish} />
