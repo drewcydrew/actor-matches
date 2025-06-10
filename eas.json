@@ -9,7 +9,10 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "TMDB_API_KEY": "eb1219440f00fcf43d3fc4d3fa33928b"
+      }
     },
     "production": {
       "autoIncrement": true

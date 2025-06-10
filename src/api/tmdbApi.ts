@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { TMDB_API_KEY } from '@env';
+//import { TMDB_API_KEY } from '@env';
 
 
 // Define interfaces for type safety
@@ -80,7 +80,7 @@ export interface MovieCredits {
 }
 
 // API Key configuration
-const API_KEY = TMDB_API_KEY || ""; 
+const API_KEY = "eb1219440f00fcf43d3fc4d3fa33928b";
 
 // Create axios instance with common configuration
 const tmdbApi = axios.create({
