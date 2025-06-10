@@ -9,7 +9,7 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { Film } from "../../api/tmdbApi";
+import tmdbApi, { Film, TVShow } from "../../api/tmdbApi";
 import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -24,6 +24,9 @@ interface ActorFilmographyModalProps {
   selectedFilm2?: Film | null;
 }
 
+type MediaType = "movies" | "tv" | "all";
+type MediaItem = (Film | TVShow) & { media_type: "movie" | "tv" };
+
 const ActorFilmographyModal = ({
   actorId,
   actorName = "Actor",
@@ -35,117 +38,178 @@ const ActorFilmographyModal = ({
   selectedFilm2,
 }: ActorFilmographyModalProps) => {
   const { colors } = useTheme();
-  const [films, setFilms] = useState<Film[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [selectedFilm, setSelectedFilm] = useState<Film | null>(null);
-  const [showFilmOptions, setShowFilmOptions] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [showItemOptions, setShowItemOptions] = useState(false);
+  const [mediaType, setMediaType] = useState<MediaType>("movies");
 
   useEffect(() => {
-    const fetchFilmography = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await tmdbApi.getActorMovieCredits(actorId);
-
-        if (response.cast && response.cast.length > 0) {
-          // Sort by popularity and filter out films with no release date
-          const sortedFilms = response.cast
-            .filter((film) => film.release_date)
-            .sort((a, b) => b.popularity - a.popularity);
-
-          setFilms(sortedFilms);
-        } else {
-          setError("No films found for this actor");
-        }
-      } catch (err) {
-        console.error("Failed to fetch actor's films:", err);
-        setError("Failed to load actor's filmography");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (isVisible && actorId) {
-      fetchFilmography();
+      fetchCredits();
     }
-  }, [actorId, isVisible]);
+  }, [actorId, isVisible, mediaType]);
 
-  const handleFilmPress = (film: Film) => {
-    setSelectedFilm(film);
-    setShowFilmOptions(true);
+  const fetchCredits = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      let movieCredits: MediaItem[] = [];
+      let tvCredits: MediaItem[] = [];
+
+      // Fetch movie credits if needed
+      if (mediaType === "movies" || mediaType === "all") {
+        const movieResponse = await tmdbApi.getActorMovieCredits(actorId);
+        if (movieResponse.cast && movieResponse.cast.length > 0) {
+          movieCredits = movieResponse.cast
+            .filter((item) => item.release_date)
+            .map((item) => ({ ...item, media_type: "movie" }));
+        }
+      }
+
+      // Fetch TV credits if needed
+      if (mediaType === "tv" || mediaType === "all") {
+        const tvResponse = await tmdbApi.getActorTVCredits(actorId);
+        if (tvResponse.cast && tvResponse.cast.length > 0) {
+          tvCredits = tvResponse.cast
+            .filter((item) => item.first_air_date)
+            .map((item) => ({ ...item, media_type: "tv" }));
+        }
+      }
+
+      // Combine and sort by popularity
+      const combined = [...movieCredits, ...tvCredits].sort(
+        (a, b) => b.popularity - a.popularity
+      );
+
+      if (combined.length > 0) {
+        setMediaItems(combined);
+      } else {
+        setError(
+          `No ${mediaType === "all" ? "media" : mediaType} found for this actor`
+        );
+      }
+    } catch (err) {
+      console.error("Failed to fetch actor's credits:", err);
+      setError(
+        `Failed to load actor's ${mediaType === "all" ? "credits" : mediaType}`
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleItemPress = (item: MediaItem) => {
+    setSelectedItem(item);
+    setShowItemOptions(true);
   };
 
   const handleSelectOption = (option: "film1" | "film2") => {
-    if (selectedFilm) {
+    if (selectedItem) {
+      // Convert TV shows to Film format if needed
+      const filmItem: Film =
+        selectedItem.media_type === "tv"
+          ? {
+              id: selectedItem.id,
+              title: (selectedItem as TVShow).name,
+              release_date: (selectedItem as TVShow).first_air_date,
+              character: selectedItem.character,
+              popularity: selectedItem.popularity,
+              overview: selectedItem.overview,
+              poster_path: selectedItem.poster_path,
+              vote_average: selectedItem.vote_average,
+            }
+          : (selectedItem as Film);
+
       if (option === "film1") {
-        onSelectFilm1(selectedFilm);
+        onSelectFilm1(filmItem);
       } else {
-        onSelectFilm2(selectedFilm);
+        onSelectFilm2(filmItem);
       }
       // Close modal and reset states
       onClose();
-      setShowFilmOptions(false);
-      setSelectedFilm(null);
+      setShowItemOptions(false);
+      setSelectedItem(null);
     }
   };
 
   const handleCloseModal = () => {
     onClose();
-    setShowFilmOptions(false);
-    setSelectedFilm(null);
+    setShowItemOptions(false);
+    setSelectedItem(null);
   };
 
-  const renderFilm = ({ item }: { item: Film }) => (
-    <TouchableOpacity
-      style={[
-        styles(colors).filmItem,
-        selectedFilm?.id === item.id ? styles(colors).selectedFilmItem : null,
-        selectedFilm1?.id === item.id ? styles(colors).film1Item : null,
-        selectedFilm2?.id === item.id ? styles(colors).film2Item : null,
-      ]}
-      onPress={() => handleFilmPress(item)}
-      activeOpacity={0.7}
-    >
-      {item.poster_path && (
-        <Image
-          source={{
-            uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
-          }}
-          style={styles(colors).poster}
-        />
-      )}
-      <View style={styles(colors).filmDetails}>
-        <Text style={styles(colors).filmTitle}>{item.title || "Untitled"}</Text>
-        <Text style={styles(colors).filmYear}>
-          {item.release_date
-            ? new Date(item.release_date).getFullYear().toString()
-            : "Unknown"}
-        </Text>
-        {item.character && (
-          <Text style={styles(colors).character}>as {item.character}</Text>
-        )}
-      </View>
+  const renderMediaItem = ({ item }: { item: MediaItem }) => {
+    const isMovie = item.media_type === "movie";
+    const title = isMovie ? (item as Film).title : (item as TVShow).name;
+    const releaseDate = isMovie
+      ? (item as Film).release_date
+      : (item as TVShow).first_air_date;
+    const year = releaseDate
+      ? new Date(releaseDate).getFullYear().toString()
+      : "Unknown";
 
-      {/* Indicate if this film is already selected */}
-      {selectedFilm1?.id === item.id && (
-        <View style={styles(colors).filmIndicator}>
-          <Text style={styles(colors).indicatorText}>Film 1</Text>
+    return (
+      <TouchableOpacity
+        style={[
+          styles(colors).filmItem,
+          selectedItem?.id === item.id ? styles(colors).selectedFilmItem : null,
+          selectedFilm1?.id === item.id ? styles(colors).film1Item : null,
+          selectedFilm2?.id === item.id ? styles(colors).film2Item : null,
+        ]}
+        onPress={() => handleItemPress(item)}
+        activeOpacity={0.7}
+      >
+        {item.poster_path && (
+          <Image
+            source={{
+              uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
+            }}
+            style={styles(colors).poster}
+          />
+        )}
+        <View style={styles(colors).filmDetails}>
+          <Text style={styles(colors).filmTitle}>{title || "Untitled"}</Text>
+          <View style={styles(colors).mediaTypeContainer}>
+            <Text style={styles(colors).filmYear}>{year}</Text>
+            <Text style={styles(colors).mediaTypeLabel}>
+              {isMovie ? "Movie" : "TV"}
+            </Text>
+          </View>
+          {item.character && (
+            <Text style={styles(colors).character}>as {item.character}</Text>
+          )}
+          {!isMovie && (item as TVShow).episode_count && (
+            <Text style={styles(colors).episodeCount}>
+              {(item as TVShow).episode_count} episode
+              {(item as TVShow).episode_count !== 1 ? "s" : ""}
+            </Text>
+          )}
         </View>
-      )}
-      {selectedFilm2?.id === item.id && (
-        <View
-          style={[
-            styles(colors).filmIndicator,
-            { backgroundColor: colors.primary || colors.primary || "orange" },
-          ]}
-        >
-          <Text style={styles(colors).indicatorText}>Film 2</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+
+        {/* Indicate if this item is already selected */}
+        {selectedFilm1?.id === item.id && (
+          <View style={styles(colors).filmIndicator}>
+            <Text style={styles(colors).indicatorText}>Film 1</Text>
+          </View>
+        )}
+        {selectedFilm2?.id === item.id && (
+          <View
+            style={[
+              styles(colors).filmIndicator,
+              {
+                backgroundColor: colors.primary || colors.primary || "orange",
+              },
+            ]}
+          >
+            <Text style={styles(colors).indicatorText}>Film 2</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
@@ -159,7 +223,7 @@ const ActorFilmographyModal = ({
           {/* Modal header */}
           <View style={styles(colors).modalHeader}>
             <Text style={styles(colors).modalTitle}>
-              Films with {actorName}
+              Credits for {actorName}
             </Text>
             <TouchableOpacity
               style={styles(colors).closeButton}
@@ -169,7 +233,63 @@ const ActorFilmographyModal = ({
             </TouchableOpacity>
           </View>
 
-          {/* Filmography content */}
+          {/* Media type selector */}
+          <View style={styles(colors).mediaTypeSelector}>
+            <TouchableOpacity
+              style={[
+                styles(colors).mediaTypeButton,
+                mediaType === "movies" &&
+                  styles(colors).selectedMediaTypeButton,
+              ]}
+              onPress={() => setMediaType("movies")}
+            >
+              <Text
+                style={[
+                  styles(colors).mediaTypeText,
+                  mediaType === "movies" &&
+                    styles(colors).selectedMediaTypeText,
+                ]}
+              >
+                Movies
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles(colors).mediaTypeButton,
+                mediaType === "tv" && styles(colors).selectedMediaTypeButton,
+              ]}
+              onPress={() => setMediaType("tv")}
+            >
+              <Text
+                style={[
+                  styles(colors).mediaTypeText,
+                  mediaType === "tv" && styles(colors).selectedMediaTypeText,
+                ]}
+              >
+                TV Shows
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles(colors).mediaTypeButton,
+                mediaType === "all" && styles(colors).selectedMediaTypeButton,
+              ]}
+              onPress={() => setMediaType("all")}
+            >
+              <Text
+                style={[
+                  styles(colors).mediaTypeText,
+                  mediaType === "all" && styles(colors).selectedMediaTypeText,
+                ]}
+              >
+                All
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Credits content */}
           <View style={styles(colors).filmographyContainer}>
             {loading ? (
               <View style={styles(colors).centerContent}>
@@ -181,22 +301,30 @@ const ActorFilmographyModal = ({
               </View>
             ) : (
               <FlatList
-                data={films}
-                renderItem={renderFilm}
-                keyExtractor={(item) => item.id.toString()}
+                data={mediaItems}
+                renderItem={renderMediaItem}
+                keyExtractor={(item, index) =>
+                  `${item.media_type}-${item.id}-${
+                    item.character?.substring(0, 10) || ""
+                  }-${index}`
+                }
                 ListEmptyComponent={
-                  <Text style={styles(colors).emptyText}>No films found</Text>
+                  <Text style={styles(colors).emptyText}>No credits found</Text>
                 }
               />
             )}
           </View>
 
-          {/* Film selection options overlay */}
-          {showFilmOptions && selectedFilm && (
+          {/* Media selection options overlay */}
+          {showItemOptions && selectedItem && (
             <View style={styles(colors).optionsOverlay}>
               <View style={styles(colors).optionsContainer}>
                 <Text style={styles(colors).optionsTitle}>
-                  Choose where to add "{selectedFilm.title}"
+                  Choose where to add "
+                  {selectedItem.media_type === "movie"
+                    ? (selectedItem as Film).title
+                    : (selectedItem as TVShow).name}
+                  "
                 </Text>
 
                 <TouchableOpacity
@@ -224,8 +352,8 @@ const ActorFilmographyModal = ({
                 <TouchableOpacity
                   style={styles(colors).cancelButton}
                   onPress={() => {
-                    setShowFilmOptions(false);
-                    setSelectedFilm(null);
+                    setShowItemOptions(false);
+                    setSelectedItem(null);
                   }}
                 >
                   <Text style={styles(colors).cancelButtonText}>Cancel</Text>
@@ -276,6 +404,29 @@ const styles = (colors: any) =>
     },
     closeButton: {
       padding: 4,
+    },
+    mediaTypeSelector: {
+      flexDirection: "row",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    mediaTypeButton: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    selectedMediaTypeButton: {
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    mediaTypeText: {
+      color: colors.textSecondary,
+      fontWeight: "500",
+    },
+    selectedMediaTypeText: {
+      color: colors.primary,
+      fontWeight: "600",
     },
     filmographyContainer: {
       flex: 1,
@@ -333,15 +484,33 @@ const styles = (colors: any) =>
       color: colors.text,
       marginBottom: 2,
     },
+    mediaTypeContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 2,
+    },
     filmYear: {
       fontSize: 14,
       color: colors.textSecondary,
-      marginBottom: 2,
+      marginRight: 8,
+    },
+    mediaTypeLabel: {
+      fontSize: 12,
+      backgroundColor: colors.surface || colors.card,
+      color: colors.textSecondary,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
     },
     character: {
       fontSize: 12,
       fontStyle: "italic",
       color: colors.textSecondary,
+    },
+    episodeCount: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
     },
     errorText: {
       color: colors.error,

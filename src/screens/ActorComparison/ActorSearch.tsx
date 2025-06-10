@@ -186,6 +186,9 @@ const ActorSearch = ({
 
   const getHeaderContent = () => {
     if (selectedActor) {
+      console.log(
+        `https://image.tmdb.org/t/p/w185${selectedActor.profile_path}`
+      );
       return (
         <View style={styles(colors).collapsedHeader}>
           {selectedActor.profile_path ? (

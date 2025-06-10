@@ -23,39 +23,49 @@ interface ActorDisplayProps {
 const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
   const { colors } = useTheme();
   const {
-    selectedFilm1,
-    selectedFilm2,
-    setSelectedFilm1,
-    setSelectedFilm2,
+    selectedMediaItem1,
+    selectedMediaItem2,
+    setSelectedMediaItem1,
+    setSelectedMediaItem2,
     castMembers,
     castLoading,
     castError,
     displayMode,
   } = useFilmContext();
 
-  // Add function to clear both films
-  const handleClearFilms = () => {
-    setSelectedFilm1(null);
-    setSelectedFilm2(null);
+  // Add function to clear both media items
+  const handleClearMedia = () => {
+    setSelectedMediaItem1(null);
+    setSelectedMediaItem2(null);
   };
 
-  // Title text based on film selection state
+  // Get appropriate media type text
+  const getMediaTypeText = (mediaItem: any) => {
+    if (!mediaItem) return "";
+    return mediaItem.media_type === "tv" ? "TV show" : "film";
+  };
+
+  // Title text based on media selection state
   const getTitleText = () => {
-    if (!selectedFilm1 && !selectedFilm2) {
-      return "Select a film to see its cast";
-    } else if (selectedFilm1 && !selectedFilm2) {
-      return `Cast of "${selectedFilm1.title}"`;
-    } else if (!selectedFilm1 && selectedFilm2) {
-      return `Cast of "${selectedFilm2.title}"`;
-    } else if (selectedFilm1 && selectedFilm2) {
-      return `Common cast in "${selectedFilm1.title}" and "${selectedFilm2.title}"`;
+    if (!selectedMediaItem1 && !selectedMediaItem2) {
+      return "Select a title to see its cast";
+    } else if (selectedMediaItem1 && !selectedMediaItem2) {
+      const type1 = getMediaTypeText(selectedMediaItem1);
+      return `Cast of "${selectedMediaItem1.title}" (${type1})`;
+    } else if (!selectedMediaItem1 && selectedMediaItem2) {
+      const type2 = getMediaTypeText(selectedMediaItem2);
+      return `Cast of "${selectedMediaItem2.title}" (${type2})`;
+    } else if (selectedMediaItem1 && selectedMediaItem2) {
+      const type1 = getMediaTypeText(selectedMediaItem1);
+      const type2 = getMediaTypeText(selectedMediaItem2);
+      return `Common cast in "${selectedMediaItem1.title}" (${type1}) and "${selectedMediaItem2.title}" (${type2})`;
     } else {
-      return "Actor Display";
+      return "Cast Display";
     }
   };
 
-  // Determine if we should show the clear button (when at least one film is selected)
-  const shouldShowClearButton = selectedFilm1 || selectedFilm2;
+  // Determine if we should show the clear button (when at least one media item is selected)
+  const shouldShowClearButton = selectedMediaItem1 || selectedMediaItem2;
 
   return (
     <View style={styles(colors).container}>
@@ -65,7 +75,7 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
         {shouldShowClearButton && (
           <TouchableOpacity
             style={styles(colors).clearButton}
-            onPress={handleClearFilms}
+            onPress={handleClearMedia}
             activeOpacity={0.7}
           >
             <Ionicons name="close-circle" size={16} color={colors.primary} />
@@ -82,9 +92,9 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
         <View style={styles(colors).castContainer}>
           {castMembers.length === 0 && !castError && !castLoading ? (
             <Text style={styles(colors).emptyText}>
-              {!selectedFilm1 && !selectedFilm2
-                ? "Select at least one film above to see cast members"
-                : selectedFilm1 && selectedFilm2
+              {!selectedMediaItem1 && !selectedMediaItem2
+                ? "Select at least one title above to see cast members"
+                : selectedMediaItem1 && selectedMediaItem2
                 ? "No common cast members found"
                 : "No cast information available"}
             </Text>
@@ -94,10 +104,10 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                 key={item.id.toString()}
                 style={styles(colors).actorItem}
                 onPress={() =>
-                  onActorSelect && selectedFilm1 && onActorSelect(item)
+                  onActorSelect && selectedMediaItem1 && onActorSelect(item)
                 }
-                disabled={!onActorSelect || !selectedFilm1}
-                activeOpacity={onActorSelect && selectedFilm1 ? 0.7 : 1}
+                disabled={!onActorSelect || !selectedMediaItem1}
+                activeOpacity={onActorSelect && selectedMediaItem1 ? 0.7 : 1}
               >
                 <View style={styles(colors).actorItemContent}>
                   {item.profile_path ? (
@@ -119,15 +129,15 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                     {displayMode === "comparison" ? (
                       <>
                         <Text style={styles(colors).character}>
-                          {`in "${selectedFilm1?.title}": ${
-                            item.characterInFilm1 ||
+                          {`in "${selectedMediaItem1?.title}": ${
+                            item.characterInMedia1 ||
                             item.character ||
                             "Unknown role"
                           }`}
                         </Text>
                         <Text style={styles(colors).character}>
-                          {`in "${selectedFilm2?.title}": ${
-                            item.characterInFilm2 ||
+                          {`in "${selectedMediaItem2?.title}": ${
+                            item.characterInMedia2 ||
                             item.character ||
                             "Unknown role"
                           }`}
@@ -149,7 +159,7 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
   );
 };
 
-// Updated styles
+// Updated styles remain the same
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {

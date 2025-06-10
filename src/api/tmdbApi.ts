@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { TMDB_API_KEY } from '@env';
+
 
 // Define interfaces for type safety
 export interface Film {
@@ -11,6 +13,25 @@ export interface Film {
   poster_path?: string;
   vote_average?: number;
 }
+
+export interface TVShow {
+  id: number;
+  name: string;          // TV shows use "name" instead of "title"
+  first_air_date?: string; // TV shows use "first_air_date" instead of "release_date"
+  character?: string;
+  popularity: number;
+  overview?: string;
+  poster_path?: string;
+  vote_average?: number;
+  episode_count?: number; // Specific to TV shows
+}
+
+export interface TVShowCredits {
+  id: number;
+  cast: CastMember[];
+}
+
+export type MediaItem = (Film | TVShow) & { media_type: 'movie' | 'tv' };
 
 export interface MovieSearchResult {
   results: Film[];
@@ -29,8 +50,18 @@ export interface ActorSearchResult {
   }[];
 }
 
+export interface TVShowSearchResult {
+  results: TVShow[];
+  total_results: number;
+  total_pages: number;
+}
+
 export interface ActorCredits {
   cast: Film[];
+}
+
+export interface ActorTVCredits {
+  cast: TVShow[];
 }
 
 export interface CastMember {
@@ -49,7 +80,7 @@ export interface MovieCredits {
 }
 
 // API Key configuration
-const API_KEY = "eb1219440f00fcf43d3fc4d3fa33928b";
+const API_KEY = TMDB_API_KEY || ""; 
 
 // Create axios instance with common configuration
 const tmdbApi = axios.create({
@@ -92,6 +123,17 @@ export const getActorMovieCredits = async (actorId: number): Promise<ActorCredit
   }
 };
 
+// New method to get actor's TV credits
+export const getActorTVCredits = async (actorId: number): Promise<ActorTVCredits> => {
+  try {
+    const response = await tmdbApi.get(`/person/${actorId}/tv_credits`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching actor TV credits:', error);
+    throw error;
+  }
+};
+
 // New method to search movies by title
 export const searchMovies = async (title: string): Promise<MovieSearchResult> => {
   try {
@@ -105,9 +147,34 @@ export const searchMovies = async (title: string): Promise<MovieSearchResult> =>
   }
 };
 
+export const searchTVShows = async (title: string): Promise<TVShowSearchResult> => {
+  try {
+    const response = await tmdbApi.get('/search/tv', {
+      params: { query: title }
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error searching for TV shows:', error);
+    throw error;
+  }
+};
+
+export const getTVShowCast = async (tvId: number): Promise<TVShowCredits> => {
+  try {
+    const response = await tmdbApi.get(`/tv/${tvId}/credits`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching TV show cast:', error);
+    throw error;
+  }
+};
+
 export default {
   searchActor,
   getActorMovieCredits,
+  getActorTVCredits,
   searchMovies,
-  getMovieCast
+  getMovieCast,
+  searchTVShows,
+  getTVShowCast
 };

@@ -5,9 +5,74 @@ import React, {
   useContext,
   useEffect,
 } from "react";
-import tmdbApi, { Film, CastMember, MovieSearchResult } from "../api/tmdbApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import tmdbApi, {
+  Film,
+  CastMember,
+  MovieSearchResult,
+  TVShow,
+} from "../api/tmdbApi";
 
-const DEFAULT_FILM_1: Film = {
+// Storage keys for AsyncStorage
+const STORAGE_KEYS = {
+  MEDIA_ITEM_1: "actor-matches:selectedMediaItem1",
+  MEDIA_ITEM_2: "actor-matches:selectedMediaItem2",
+  CAST_MEMBER_1: "actor-matches:selectedCastMember1",
+  CAST_MEMBER_2: "actor-matches:selectedCastMember2",
+};
+
+// Define a unified MediaItem type that can be either a Film or a TVShow
+export interface MediaItem {
+  id: number;
+  title: string; // For movies and normalized TV shows
+  name?: string; // Original name for TV shows
+  release_date?: string; // For movies
+  first_air_date?: string; // For TV shows
+  character?: string;
+  popularity: number;
+  overview?: string;
+  poster_path?: string;
+  vote_average?: number;
+  media_type: "movie" | "tv"; // Explicitly track the media type
+}
+
+// Convert external types to our unified MediaItem
+export const convertToMediaItem = (
+  item: Film | TVShow,
+  type: "movie" | "tv"
+): MediaItem => {
+  if (type === "movie") {
+    const film = item as Film;
+    return {
+      id: film.id,
+      title: film.title,
+      release_date: film.release_date,
+      character: film.character,
+      popularity: film.popularity,
+      overview: film.overview,
+      poster_path: film.poster_path,
+      vote_average: film.vote_average,
+      media_type: "movie",
+    };
+  } else {
+    const tvShow = item as TVShow;
+    return {
+      id: tvShow.id,
+      title: tvShow.name, // Normalize name to title for consistency
+      name: tvShow.name, // Keep original name
+      first_air_date: tvShow.first_air_date,
+      character: tvShow.character,
+      popularity: tvShow.popularity,
+      overview: tvShow.overview,
+      poster_path: tvShow.poster_path,
+      vote_average: tvShow.vote_average,
+      media_type: "tv",
+    };
+  }
+};
+
+// Update default values to use the MediaItem type
+const DEFAULT_MEDIA_1: MediaItem = {
   id: 238,
   title: "The Godfather",
   release_date: "1972-03-14",
@@ -16,9 +81,10 @@ const DEFAULT_FILM_1: Film = {
     "Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family. When organized crime family patriarch, Vito Corleone barely survives an attempt on his life, his youngest son, Michael steps in to take care of the would-be killers, launching a campaign of bloody revenge.",
   poster_path: "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
   vote_average: 8.7,
+  media_type: "movie",
 };
 
-const DEFAULT_FILM_2: Film = {
+const DEFAULT_MEDIA_2: MediaItem = {
   id: 242,
   title: "The Godfather Part III",
   release_date: "1990-12-25",
@@ -27,6 +93,7 @@ const DEFAULT_FILM_2: Film = {
     "In the midst of trying to legitimize his business dealings in 1979 New York and Italy, aging mafia don, Michael Corleone seeks forgiveness for his sins while taking a young protege under his wing.",
   poster_path: "/lm3pQ2QoQ16pextRsmnUbG2onES.jpg",
   vote_average: 7.4,
+  media_type: "movie",
 };
 
 const DEFAULT_ACTOR_1: SelectedActor = {
@@ -38,17 +105,17 @@ const DEFAULT_ACTOR_1: SelectedActor = {
 const DEFAULT_ACTOR_2: SelectedActor = {
   id: 192,
   name: "Morgan Freeman",
-  profile_path: "/oIciQWrRRqsQGWD3MKjcLCQTdAP.jpg",
+  profile_path: "/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
 };
 
 // Define interfaces
 export interface CommonCastMember extends CastMember {
-  characterInFilm1?: string;
-  characterInFilm2?: string;
+  characterInMedia1?: string;
+  characterInMedia2?: string;
 }
 
-// Extended Film interface to include character information for actors
-export interface CommonFilm extends Film {
+// Extended MediaItem interface to include character information for actors
+export interface CommonMediaItem extends MediaItem {
   characterForActor1?: string;
   characterForActor2?: string;
 }
@@ -71,11 +138,11 @@ export interface Actor {
 
 // Define the shape of our context state
 interface FilmContextType {
-  // Film selection
-  selectedFilm1: Film | null;
-  selectedFilm2: Film | null;
-  setSelectedFilm1: (film: Film | null) => void;
-  setSelectedFilm2: (film: Film | null) => void;
+  // Media selection
+  selectedMediaItem1: MediaItem | null;
+  selectedMediaItem2: MediaItem | null;
+  setSelectedMediaItem1: (media: MediaItem | null) => void;
+  setSelectedMediaItem2: (media: MediaItem | null) => void;
 
   // Cast member selection
   selectedCastMember1: SelectedActor | null;
@@ -90,9 +157,9 @@ interface FilmContextType {
   displayMode: "single" | "comparison";
 
   // Filmography data for actors
-  commonFilms: CommonFilm[];
-  filmsLoading: boolean;
-  filmsError: string;
+  commonMedia: CommonMediaItem[];
+  mediaLoading: boolean;
+  mediaError: string;
 
   // Method to manually refresh cast data if needed
   refreshCastData: () => Promise<void>;
@@ -105,13 +172,17 @@ interface FilmContextType {
     actor2Name?: string
   ) => Promise<void>;
 
-  // Film search functionality
+  // Search functionality
   searchFilms: (query: string) => Promise<{
     results: Film[];
     error: string | null;
   }>;
 
-  // Actor search functionality
+  searchTVShows: (query: string) => Promise<{
+    results: TVShow[];
+    error: string | null;
+  }>;
+
   searchActors: (query: string) => Promise<{
     results: Actor[];
     error: string | null;
@@ -120,10 +191,10 @@ interface FilmContextType {
 
 // Create the context with default values
 const FilmContext = createContext<FilmContextType>({
-  selectedFilm1: null,
-  selectedFilm2: null,
-  setSelectedFilm1: () => {},
-  setSelectedFilm2: () => {},
+  selectedMediaItem1: null,
+  selectedMediaItem2: null,
+  setSelectedMediaItem1: () => {},
+  setSelectedMediaItem2: () => {},
   selectedCastMember1: null,
   selectedCastMember2: null,
   setSelectedCastMember1: () => {},
@@ -132,12 +203,13 @@ const FilmContext = createContext<FilmContextType>({
   castLoading: false,
   castError: "",
   displayMode: "comparison",
-  commonFilms: [],
-  filmsLoading: false,
-  filmsError: "",
+  commonMedia: [],
+  mediaLoading: false,
+  mediaError: "",
   refreshCastData: async () => {},
   getActorFilmography: async () => {},
   searchFilms: async () => ({ results: [], error: null }),
+  searchTVShows: async () => ({ results: [], error: null }),
   searchActors: async () => ({ results: [], error: null }),
 });
 
@@ -151,19 +223,20 @@ interface FilmProviderProps {
 
 // Context provider component
 export const FilmProvider = ({ children }: FilmProviderProps) => {
-  // Film selection state
-  const [selectedFilm1, setSelectedFilm1] = useState<Film | null>(
-    DEFAULT_FILM_1
-  );
-  const [selectedFilm2, setSelectedFilm2] = useState<Film | null>(
-    DEFAULT_FILM_2
-  );
+  // Media selection state - initialize with null and load from storage
+  const [selectedMediaItem1, setSelectedMediaItem1Internal] =
+    useState<MediaItem | null>(null);
+  const [selectedMediaItem2, setSelectedMediaItem2Internal] =
+    useState<MediaItem | null>(null);
 
-  // Actor selection state
-  const [selectedCastMember1, setSelectedCastMember1] =
-    useState<SelectedActor | null>(DEFAULT_ACTOR_1);
-  const [selectedCastMember2, setSelectedCastMember2] =
-    useState<SelectedActor | null>(DEFAULT_ACTOR_2);
+  // Actor selection state - initialize with null and load from storage
+  const [selectedCastMember1, setSelectedCastMember1Internal] =
+    useState<SelectedActor | null>(null);
+  const [selectedCastMember2, setSelectedCastMember2Internal] =
+    useState<SelectedActor | null>(null);
+
+  // Loading state for initial data
+  const [isLoading, setIsLoading] = useState(true);
 
   // Cast data state
   const [castMembers, setCastMembers] = useState<CommonCastMember[]>([]);
@@ -173,19 +246,143 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     "comparison"
   );
 
-  // Filmography data state
-  const [commonFilms, setCommonFilms] = useState<CommonFilm[]>([]);
-  const [filmsLoading, setFilmsLoading] = useState<boolean>(false);
-  const [filmsError, setFilmsError] = useState<string>("");
+  // Media data state for actors
+  const [commonMedia, setCommonMedia] = useState<CommonMediaItem[]>([]);
+  const [mediaLoading, setMediaLoading] = useState<boolean>(false);
+  const [mediaError, setMediaError] = useState<string>("");
 
-  // Fetch cast data whenever selected films change
+  // Load data from AsyncStorage on initial mount
   useEffect(() => {
-    fetchCastData();
-  }, [selectedFilm1, selectedFilm2]);
+    const loadStoredData = async () => {
+      try {
+        // Load media items
+        const storedMediaItem1String = await AsyncStorage.getItem(
+          STORAGE_KEYS.MEDIA_ITEM_1
+        );
+        const storedMediaItem2String = await AsyncStorage.getItem(
+          STORAGE_KEYS.MEDIA_ITEM_2
+        );
 
-  // Fetch actor filmography whenever selected actors change
+        // Load cast members
+        const storedCastMember1String = await AsyncStorage.getItem(
+          STORAGE_KEYS.CAST_MEMBER_1
+        );
+        const storedCastMember2String = await AsyncStorage.getItem(
+          STORAGE_KEYS.CAST_MEMBER_2
+        );
+
+        // Parse stored data or use defaults
+        const storedMediaItem1 = storedMediaItem1String
+          ? JSON.parse(storedMediaItem1String)
+          : DEFAULT_MEDIA_1;
+
+        const storedMediaItem2 = storedMediaItem2String
+          ? JSON.parse(storedMediaItem2String)
+          : DEFAULT_MEDIA_2;
+
+        const storedCastMember1 = storedCastMember1String
+          ? JSON.parse(storedCastMember1String)
+          : DEFAULT_ACTOR_1;
+
+        const storedCastMember2 = storedCastMember2String
+          ? JSON.parse(storedCastMember2String)
+          : DEFAULT_ACTOR_2;
+
+        // Update state with stored values
+        setSelectedMediaItem1Internal(storedMediaItem1);
+        setSelectedMediaItem2Internal(storedMediaItem2);
+        setSelectedCastMember1Internal(storedCastMember1);
+        setSelectedCastMember2Internal(storedCastMember2);
+      } catch (error) {
+        console.error("Error loading stored selections:", error);
+        // Fall back to defaults in case of error
+        setSelectedMediaItem1Internal(DEFAULT_MEDIA_1);
+        setSelectedMediaItem2Internal(DEFAULT_MEDIA_2);
+        setSelectedCastMember1Internal(DEFAULT_ACTOR_1);
+        setSelectedCastMember2Internal(DEFAULT_ACTOR_2);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStoredData();
+  }, []);
+
+  // Wrapper methods to persist data to AsyncStorage
+  const setSelectedMediaItem1 = async (media: MediaItem | null) => {
+    setSelectedMediaItem1Internal(media);
+    try {
+      if (media) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.MEDIA_ITEM_1,
+          JSON.stringify(media)
+        );
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_1);
+      }
+    } catch (error) {
+      console.error("Error storing selectedMediaItem1:", error);
+    }
+  };
+
+  const setSelectedMediaItem2 = async (media: MediaItem | null) => {
+    setSelectedMediaItem2Internal(media);
+    try {
+      if (media) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.MEDIA_ITEM_2,
+          JSON.stringify(media)
+        );
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_2);
+      }
+    } catch (error) {
+      console.error("Error storing selectedMediaItem2:", error);
+    }
+  };
+
+  const setSelectedCastMember1 = async (actor: SelectedActor | null) => {
+    setSelectedCastMember1Internal(actor);
+    try {
+      if (actor) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.CAST_MEMBER_1,
+          JSON.stringify(actor)
+        );
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_1);
+      }
+    } catch (error) {
+      console.error("Error storing selectedCastMember1:", error);
+    }
+  };
+
+  const setSelectedCastMember2 = async (actor: SelectedActor | null) => {
+    setSelectedCastMember2Internal(actor);
+    try {
+      if (actor) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.CAST_MEMBER_2,
+          JSON.stringify(actor)
+        );
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_2);
+      }
+    } catch (error) {
+      console.error("Error storing selectedCastMember2:", error);
+    }
+  };
+
+  // Fetch cast data whenever selected media changes - only after loading complete
   useEffect(() => {
-    if (selectedCastMember1 || selectedCastMember2) {
+    if (!isLoading) {
+      fetchCastData();
+    }
+  }, [selectedMediaItem1, selectedMediaItem2, isLoading]);
+
+  // Fetch actor filmography whenever selected actors change - only after loading complete
+  useEffect(() => {
+    if (!isLoading && (selectedCastMember1 || selectedCastMember2)) {
       getActorFilmography(
         selectedCastMember1?.id,
         selectedCastMember2?.id,
@@ -193,9 +390,129 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         selectedCastMember2?.name
       );
     }
-  }, [selectedCastMember1, selectedCastMember2]);
+  }, [selectedCastMember1, selectedCastMember2, isLoading]);
 
-  // Function to get actor filmography
+  // Function to fetch cast data based on selected media
+  const fetchCastData = async () => {
+    // Reset state
+    setCastMembers([]);
+    setCastError("");
+
+    // Case 1: No media selected
+    if (!selectedMediaItem1 && !selectedMediaItem2) {
+      setDisplayMode("comparison");
+      return;
+    }
+
+    // Case 2: Only one media item selected
+    if (
+      (selectedMediaItem1 && !selectedMediaItem2) ||
+      (!selectedMediaItem1 && selectedMediaItem2)
+    ) {
+      setDisplayMode("single");
+      const activeMedia = selectedMediaItem1 || selectedMediaItem2;
+
+      if (!activeMedia) return; // TypeScript safety
+
+      setCastLoading(true);
+
+      try {
+        // Check if this is a TV show or a movie
+        const isTV = activeMedia.media_type === "tv";
+
+        // Fetch the appropriate cast data
+        const castData = isTV
+          ? await tmdbApi.getTVShowCast(activeMedia.id)
+          : await tmdbApi.getMovieCast(activeMedia.id);
+
+        if (castData.cast && castData.cast.length > 0) {
+          setCastMembers(
+            castData.cast.sort(
+              (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
+            )
+          );
+        } else {
+          setCastError(
+            `No cast information available for this ${
+              isTV ? "TV show" : "film"
+            }`
+          );
+        }
+      } catch (err) {
+        setCastError("Error fetching cast information");
+        console.error(err);
+      } finally {
+        setCastLoading(false);
+      }
+      return;
+    }
+
+    // Case 3: Both media items selected - find common cast
+    setDisplayMode("comparison");
+
+    if (selectedMediaItem1 && selectedMediaItem2) {
+      setCastLoading(true);
+
+      try {
+        // Determine if each media item is a TV show or movie
+        const isMedia1TV = selectedMediaItem1.media_type === "tv";
+        const isMedia2TV = selectedMediaItem2.media_type === "tv";
+
+        // Fetch appropriate cast for each media item
+        const cast1Data = isMedia1TV
+          ? await tmdbApi.getTVShowCast(selectedMediaItem1.id)
+          : await tmdbApi.getMovieCast(selectedMediaItem1.id);
+
+        const cast2Data = isMedia2TV
+          ? await tmdbApi.getTVShowCast(selectedMediaItem2.id)
+          : await tmdbApi.getMovieCast(selectedMediaItem2.id);
+
+        if (
+          cast1Data.cast &&
+          cast2Data.cast &&
+          cast1Data.cast.length > 0 &&
+          cast2Data.cast.length > 0
+        ) {
+          // Create map of actor IDs from first cast for fast lookup
+          const cast1Map = new Map();
+          cast1Data.cast.forEach((actor) => {
+            cast1Map.set(actor.id, actor);
+          });
+
+          // Find actors in both casts
+          const matchingActors = cast2Data.cast
+            .filter((actor) => cast1Map.has(actor.id))
+            .map((actor) => {
+              const actorInMedia1 = cast1Map.get(actor.id);
+              return {
+                ...actor,
+                characterInMedia1: actorInMedia1.character || "Unknown role",
+                characterInMedia2: actor.character || "Unknown role",
+              };
+            });
+
+          if (matchingActors.length > 0) {
+            setCastMembers(
+              matchingActors.sort(
+                (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
+              )
+            );
+          } else {
+            setCastError("No common cast members found");
+          }
+        } else {
+          setCastError("Cast information not available for one or both titles");
+        }
+      } catch (err) {
+        setCastError("Error fetching cast information");
+        console.error(err);
+      } finally {
+        setCastLoading(false);
+      }
+    }
+  };
+
+  // Function to get actor filmography (both movies and TV shows)
   const getActorFilmography = async (
     actor1Id?: number,
     actor2Id?: number,
@@ -203,105 +520,171 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     actor2Name: string = "Second actor"
   ) => {
     // Reset state
-    setCommonFilms([]);
-    setFilmsError("");
+    setCommonMedia([]);
+    setMediaError("");
 
     // Case 1: No actors selected
     if (!actor1Id && !actor2Id) {
       return;
     }
 
-    // Case 2: Only one actor selected - show their films
+    // Case 2: Only one actor selected - show their media
     if ((actor1Id && !actor2Id) || (!actor1Id && actor2Id)) {
       const selectedActorId = actor1Id || actor2Id;
       const selectedActorName = actor1Id ? actor1Name : actor2Name;
 
       if (!selectedActorId) return; // TypeScript safety
 
-      setFilmsLoading(true);
+      setMediaLoading(true);
 
       try {
-        const creditsData = await tmdbApi.getActorMovieCredits(selectedActorId);
+        // Get both movie and TV credits
+        const movieCredits = await tmdbApi.getActorMovieCredits(
+          selectedActorId
+        );
+        const tvCredits = await tmdbApi.getActorTVCredits(selectedActorId);
 
-        if (creditsData.cast && creditsData.cast.length > 0) {
-          // Sort by popularity and add character information
-          const actorFilms = creditsData.cast
-            .filter((film) => film.release_date) // Filter out films with no release date
-            .map((film) => ({
-              ...film,
-              characterForActor1: actor1Id ? film.character : undefined,
-              characterForActor2: actor2Id ? film.character : undefined,
-            }))
-            .sort((a, b) => b.popularity - a.popularity);
+        // Process movie credits
+        const movieItems: CommonMediaItem[] =
+          movieCredits.cast && movieCredits.cast.length > 0
+            ? movieCredits.cast
+                .filter((film) => film.release_date)
+                .map((film) => ({
+                  ...convertToMediaItem(film, "movie"),
+                  characterForActor1: actor1Id ? film.character : undefined,
+                  characterForActor2: actor2Id ? film.character : undefined,
+                }))
+            : [];
 
-          setCommonFilms(actorFilms);
+        // Process TV credits
+        const tvItems: CommonMediaItem[] =
+          tvCredits.cast && tvCredits.cast.length > 0
+            ? tvCredits.cast
+                .filter((show) => show.first_air_date)
+                .map((show) => ({
+                  ...convertToMediaItem(show, "tv"),
+                  characterForActor1: actor1Id ? show.character : undefined,
+                  characterForActor2: actor2Id ? show.character : undefined,
+                }))
+            : [];
+
+        // Combine and sort by popularity
+        const combinedMedia = [...movieItems, ...tvItems].sort(
+          (a, b) => b.popularity - a.popularity
+        );
+
+        if (combinedMedia.length > 0) {
+          setCommonMedia(combinedMedia);
         } else {
-          setFilmsError(`No films found for ${selectedActorName}`);
+          setMediaError(`No media found for ${selectedActorName}`);
         }
       } catch (err) {
-        setFilmsError("Error fetching actor's filmography");
+        setMediaError("Error fetching actor's filmography");
         console.error(err);
       } finally {
-        setFilmsLoading(false);
+        setMediaLoading(false);
       }
       return;
     }
 
-    // Case 3: Both actors selected - find common films
+    // Case 3: Both actors selected - find common media
     if (actor1Id && actor2Id) {
-      setFilmsLoading(true);
+      setMediaLoading(true);
 
       try {
-        // Fetch credits for both actors
-        const actor1Credits = await tmdbApi.getActorMovieCredits(actor1Id);
-        const actor2Credits = await tmdbApi.getActorMovieCredits(actor2Id);
+        // Fetch movie credits for both actors
+        const actor1MovieCredits = await tmdbApi.getActorMovieCredits(actor1Id);
+        const actor2MovieCredits = await tmdbApi.getActorMovieCredits(actor2Id);
 
-        if (
-          actor1Credits.cast &&
-          actor2Credits.cast &&
-          actor1Credits.cast.length > 0 &&
-          actor2Credits.cast.length > 0
-        ) {
-          // Create map of films from first actor for fast lookup
-          const filmsMap = new Map();
-          actor1Credits.cast.forEach((film) => {
+        // Fetch TV credits for both actors
+        const actor1TVCredits = await tmdbApi.getActorTVCredits(actor1Id);
+        const actor2TVCredits = await tmdbApi.getActorTVCredits(actor2Id);
+
+        // Process all credits to MediaItem format
+        const actor1MediaItems: Map<number, CommonMediaItem> = new Map();
+
+        // Add movies from actor 1
+        if (actor1MovieCredits.cast && actor1MovieCredits.cast.length > 0) {
+          actor1MovieCredits.cast.forEach((film) => {
             if (film.release_date) {
-              // Filter out films with no release date
-              filmsMap.set(film.id, {
-                ...film,
+              actor1MediaItems.set(film.id, {
+                ...convertToMediaItem(film, "movie"),
                 characterForActor1: film.character || "Unknown role",
               });
             }
           });
+        }
 
-          // Find films that both actors appeared in
-          const matchingFilms = actor2Credits.cast
-            .filter((film) => filmsMap.has(film.id) && film.release_date)
-            .map((film) => {
-              const filmWithActor1 = filmsMap.get(film.id);
-              return {
-                ...filmWithActor1,
+        // Add TV shows from actor 1
+        if (actor1TVCredits.cast && actor1TVCredits.cast.length > 0) {
+          actor1TVCredits.cast.forEach((show) => {
+            if (show.first_air_date) {
+              actor1MediaItems.set(show.id, {
+                ...convertToMediaItem(show, "tv"),
+                characterForActor1: show.character || "Unknown role",
+              });
+            }
+          });
+        }
+
+        // Find matching movies from actor 2
+        const matchingMovies: CommonMediaItem[] = [];
+        if (actor2MovieCredits.cast && actor2MovieCredits.cast.length > 0) {
+          actor2MovieCredits.cast.forEach((film) => {
+            if (film.release_date && actor1MediaItems.has(film.id)) {
+              const mediaItem = actor1MediaItems.get(film.id)!;
+              matchingMovies.push({
+                ...mediaItem,
                 characterForActor2: film.character || "Unknown role",
-              };
-            });
+              });
+            }
+          });
+        }
 
-          if (matchingFilms.length > 0) {
-            setCommonFilms(
-              matchingFilms.sort((a, b) => b.popularity - a.popularity)
-            );
-          } else {
-            setFilmsError(
-              `${actor1Name} and ${actor2Name} haven't appeared in any films together`
-            );
-          }
+        // Find matching TV shows from actor 2
+        const matchingTVShows: CommonMediaItem[] = [];
+        if (actor2TVCredits.cast && actor2TVCredits.cast.length > 0) {
+          actor2TVCredits.cast.forEach((show) => {
+            if (show.first_air_date && actor1MediaItems.has(show.id)) {
+              const mediaItem = actor1MediaItems.get(show.id)!;
+              matchingTVShows.push({
+                ...mediaItem,
+                characterForActor2: show.character || "Unknown role",
+              });
+            }
+          });
+        }
+
+        // Combine all matching media and sort by popularity
+        const allMatchingMedia = [...matchingMovies, ...matchingTVShows];
+
+        // Deduplicate based on id and media_type
+        const uniqueMedia = Array.from(
+          new Map(
+            allMatchingMedia.map((item) => [
+              `${item.media_type}-${item.id}`,
+              item,
+            ])
+          ).values()
+        );
+
+        // Sort by popularity
+        const sortedMedia = uniqueMedia.sort(
+          (a, b) => b.popularity - a.popularity
+        );
+
+        if (sortedMedia.length > 0) {
+          setCommonMedia(sortedMedia);
         } else {
-          setFilmsError("Filmography not available for one or both actors");
+          setMediaError(
+            `${actor1Name} and ${actor2Name} haven't appeared in any movies or TV shows together`
+          );
         }
       } catch (err) {
-        setFilmsError("Error fetching filmography information");
+        setMediaError("Error fetching filmography information");
         console.error(err);
       } finally {
-        setFilmsLoading(false);
+        setMediaLoading(false);
       }
     }
   };
@@ -334,107 +717,38 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
-  // Function to fetch cast data based on selected films
-  const fetchCastData = async () => {
-    // Reset state
-    setCastMembers([]);
-    setCastError("");
-
-    // Case 1: No films selected
-    if (!selectedFilm1 && !selectedFilm2) {
-      setDisplayMode("comparison");
-      return;
+  // Function to search for TV shows
+  const searchTVShows = async (
+    query: string
+  ): Promise<{
+    results: TVShow[];
+    error: string | null;
+  }> => {
+    if (!query.trim()) {
+      return { results: [], error: "Please enter a TV show title" };
     }
 
-    // Case 2: Only one film selected
-    if (
-      (selectedFilm1 && !selectedFilm2) ||
-      (!selectedFilm1 && selectedFilm2)
-    ) {
-      setDisplayMode("single");
-      const activeFilm = selectedFilm1 || selectedFilm2;
+    try {
+      const tvData = await tmdbApi.searchTVShows(query);
 
-      if (!activeFilm) return; // TypeScript safety
-
-      setCastLoading(true);
-
-      try {
-        const castData = await tmdbApi.getMovieCast(activeFilm.id);
-
-        if (castData.cast && castData.cast.length > 0) {
-          setCastMembers(
-            castData.cast.sort(
-              (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
-            )
-          );
-        } else {
-          setCastError("No cast information available for this film");
-        }
-      } catch (err) {
-        setCastError("Error fetching cast information");
-        console.error(err);
-      } finally {
-        setCastLoading(false);
+      if (tvData.results && tvData.results.length > 0) {
+        const sortedResults = tvData.results.sort(
+          (a: TVShow, b: TVShow) => b.popularity - a.popularity
+        );
+        return { results: sortedResults, error: null };
+      } else {
+        return { results: [], error: "No TV shows found" };
       }
-      return;
-    }
-
-    // Case 3: Both films selected - find common cast
-    setDisplayMode("comparison");
-
-    if (selectedFilm1 && selectedFilm2) {
-      setCastLoading(true);
-
-      try {
-        // Fetch cast for both films
-        const cast1Data = await tmdbApi.getMovieCast(selectedFilm1.id);
-        const cast2Data = await tmdbApi.getMovieCast(selectedFilm2.id);
-
-        if (
-          cast1Data.cast &&
-          cast2Data.cast &&
-          cast1Data.cast.length > 0 &&
-          cast2Data.cast.length > 0
-        ) {
-          // Create map of actor IDs from first cast for fast lookup
-          const cast1Map = new Map();
-          cast1Data.cast.forEach((actor) => {
-            cast1Map.set(actor.id, actor);
-          });
-
-          // Find actors in both casts
-          const matchingActors = cast2Data.cast
-            .filter((actor) => cast1Map.has(actor.id))
-            .map((actor) => {
-              const actorInFilm1 = cast1Map.get(actor.id);
-              return {
-                ...actor,
-                characterInFilm1: actorInFilm1.character || "Unknown role",
-                characterInFilm2: actor.character || "Unknown role",
-              };
-            });
-
-          if (matchingActors.length > 0) {
-            setCastMembers(
-              matchingActors.sort(
-                (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
-              )
-            );
-          } else {
-            setCastError("No common cast members found");
-          }
-        } else {
-          setCastError("Cast information not available for one or both films");
-        }
-      } catch (err) {
-        setCastError("Error fetching cast information");
-        console.error(err);
-      } finally {
-        setCastLoading(false);
-      }
+    } catch (err) {
+      console.error("Error searching for TV shows:", err);
+      return {
+        results: [],
+        error: "An error occurred while searching for TV shows",
+      };
     }
   };
 
+  // Function to search for actors
   const searchActors = async (
     query: string
   ): Promise<{
@@ -476,10 +790,10 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
   // Value object that will be passed to consumers
   const value = {
-    selectedFilm1,
-    selectedFilm2,
-    setSelectedFilm1,
-    setSelectedFilm2,
+    selectedMediaItem1,
+    selectedMediaItem2,
+    setSelectedMediaItem1,
+    setSelectedMediaItem2,
     selectedCastMember1,
     selectedCastMember2,
     setSelectedCastMember1,
@@ -488,14 +802,20 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     castLoading,
     castError,
     displayMode,
-    commonFilms,
-    filmsLoading,
-    filmsError,
+    commonMedia,
+    mediaLoading,
+    mediaError,
     refreshCastData: fetchCastData,
     getActorFilmography,
     searchFilms,
+    searchTVShows,
     searchActors,
   };
+
+  // Show a loading state if we're still initializing from AsyncStorage
+  if (isLoading) {
+    return null; // Or a loading indicator if you prefer
+  }
 
   return <FilmContext.Provider value={value}>{children}</FilmContext.Provider>;
 };

@@ -6,6 +6,7 @@ import MainScreen from "./src/screens/MainScreen";
 import SplashScreen from "./src/modals/SplashScreen";
 import GetAppBanner from "./src/modals/GetAppBanner";
 import PrivacyPolicyModal from "./src/modals/PrivacyPolicyModal";
+import UnifiedSplashScreen from "./src/modals/UnifiedSplashScreen";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -19,20 +20,13 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <FilmProvider>
-          <MainScreen />
-          <GetAppBanner
-            androidUrl="https://play.google.com/apps/testing/com.drew92.actormatches"
-            androidTestersGroupUrl="https://groups.google.com/g/i-am-db-testers"
-            iosUrl="https://testflight.apple.com/join/9rHGtzmn"
+          <UnifiedSplashScreen
+            isVisible={showSplash}
+            onFinish={handleSplashFinish}
+            appName="I Am DB" // Customize the app name
           />
-          <SplashScreen isVisible={showSplash} onFinish={handleSplashFinish} />
 
-          {/* Standalone Privacy Policy Modal that shows by default */}
-          <PrivacyPolicyModal
-            isVisible={showPrivacyPolicy}
-            onClose={() => setShowPrivacyPolicy(false)}
-            appName="I Am DB"
-          />
+          <MainScreen />
         </FilmProvider>
       </ThemeProvider>
     </SafeAreaProvider>

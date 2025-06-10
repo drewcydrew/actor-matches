@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,10 +7,16 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import { Film } from "../../api/tmdbApi";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext } from "../../context/FilmContext";
+import {
+  useFilmContext,
+  MediaItem,
+  CommonMediaItem,
+} from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
+
+// Define filter type
+type FilterMode = "all" | "movies" | "tv";
 
 // Define our props
 interface FilmDisplayProps {
@@ -18,7 +24,7 @@ interface FilmDisplayProps {
   actor2Id?: number;
   actor1Name?: string;
   actor2Name?: string;
-  onFilmSelect?: (film: Film) => void;
+  onFilmSelect?: (media: MediaItem) => void;
 }
 
 const FilmDisplay = ({
@@ -30,13 +36,17 @@ const FilmDisplay = ({
 }: FilmDisplayProps) => {
   const { colors } = useTheme();
   const {
-    commonFilms,
-    filmsLoading,
-    filmsError,
+    commonMedia,
+    mediaLoading,
+    mediaError,
     getActorFilmography,
     setSelectedCastMember1,
     setSelectedCastMember2,
   } = useFilmContext();
+
+  // Add state for media type filtering
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [filteredMedia, setFilteredMedia] = useState<CommonMediaItem[]>([]);
 
   // Add function to clear both actors
   const handleClearActors = () => {
@@ -49,23 +59,76 @@ const FilmDisplay = ({
     getActorFilmography(actor1Id, actor2Id, actor1Name, actor2Name);
   }, [actor1Id, actor2Id, actor1Name, actor2Name]);
 
+  // Apply filtering when commonMedia or filterMode changes
+  useEffect(() => {
+    if (!commonMedia || commonMedia.length === 0) {
+      setFilteredMedia([]);
+      return;
+    }
+
+    if (filterMode === "all") {
+      setFilteredMedia(commonMedia);
+    } else if (filterMode === "movies") {
+      setFilteredMedia(
+        commonMedia.filter((item) => item.media_type === "movie")
+      );
+    } else if (filterMode === "tv") {
+      setFilteredMedia(commonMedia.filter((item) => item.media_type === "tv"));
+    }
+  }, [commonMedia, filterMode]);
+
   // Title text based on actor selection state
   const getTitleText = () => {
     if (!actor1Id && !actor2Id) {
-      return "Select actors to see their films";
+      return "Select actors to see their filmography";
     } else if (actor1Id && !actor2Id) {
       return `Filmography of ${actor1Name}`;
     } else if (!actor1Id && actor2Id) {
       return `Filmography of ${actor2Name}`;
     } else if (actor1Id && actor2Id) {
-      return `Films with both ${actor1Name} and ${actor2Name}`;
+      return `Projects with both ${actor1Name} and ${actor2Name}`;
     } else {
-      return "Film Display";
+      return "Media Display";
     }
   };
 
+  // Get year from the appropriate date field based on media type
+  const getYear = (media: CommonMediaItem): string => {
+    if (media.media_type === "tv") {
+      return media.first_air_date
+        ? new Date(media.first_air_date).getFullYear().toString()
+        : "Unknown year";
+    }
+
+    return media.release_date
+      ? new Date(media.release_date).getFullYear().toString()
+      : "Unknown year";
+  };
+
+  // Get counts for filter badges
+  const getMediaCounts = () => {
+    if (!commonMedia || commonMedia.length === 0)
+      return { movies: 0, tv: 0, all: 0 };
+
+    const movies = commonMedia.filter(
+      (item) => item.media_type === "movie"
+    ).length;
+    const tv = commonMedia.filter((item) => item.media_type === "tv").length;
+
+    return {
+      movies,
+      tv,
+      all: movies + tv,
+    };
+  };
+
+  const mediaCounts = getMediaCounts();
+
   // Determine if we should show the clear button (when at least one actor is selected)
   const shouldShowClearButton = actor1Id || actor2Id;
+
+  // Determine if we should show the filter controls
+  const shouldShowFilters = commonMedia.length > 0;
 
   return (
     <View style={styles(colors).container}>
@@ -84,36 +147,100 @@ const FilmDisplay = ({
         )}
       </View>
 
-      {filmsError ? (
-        <Text style={styles(colors).error}>{filmsError}</Text>
+      {/* Filter controls */}
+      {shouldShowFilters && (
+        <View style={styles(colors).filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles(colors).filterButton,
+              filterMode === "all" && styles(colors).activeFilterButton,
+            ]}
+            onPress={() => setFilterMode("all")}
+          >
+            <Text
+              style={[
+                styles(colors).filterButtonText,
+                filterMode === "all" && styles(colors).activeFilterText,
+              ]}
+            >
+              All ({mediaCounts.all})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles(colors).filterButton,
+              filterMode === "movies" && styles(colors).activeFilterButton,
+            ]}
+            onPress={() => setFilterMode("movies")}
+          >
+            <Text
+              style={[
+                styles(colors).filterButtonText,
+                filterMode === "movies" && styles(colors).activeFilterText,
+              ]}
+            >
+              Movies ({mediaCounts.movies})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles(colors).filterButton,
+              filterMode === "tv" && styles(colors).activeFilterButton,
+            ]}
+            onPress={() => setFilterMode("tv")}
+          >
+            <Text
+              style={[
+                styles(colors).filterButtonText,
+                filterMode === "tv" && styles(colors).activeFilterText,
+              ]}
+            >
+              TV Shows ({mediaCounts.tv})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {mediaError ? (
+        <Text style={styles(colors).error}>{mediaError}</Text>
       ) : null}
 
-      {filmsLoading ? (
+      {mediaLoading ? (
         <ActivityIndicator size="large" color={colors.primary} />
       ) : (
-        <View style={styles(colors).filmsContainer}>
-          {commonFilms.length === 0 && !filmsError && !filmsLoading ? (
+        <View style={styles(colors).mediaContainer}>
+          {filteredMedia.length === 0 && !mediaError && !mediaLoading ? (
             <Text style={styles(colors).emptyText}>
               {!actor1Id && !actor2Id
-                ? "Select actors above to see their common films"
+                ? "Select actors above to see their work"
                 : actor1Id && actor2Id
-                ? "No films found with both actors"
-                : "No filmography information available"}
+                ? filterMode !== "all"
+                  ? `No ${
+                      filterMode === "movies" ? "movies" : "TV shows"
+                    } found with both actors`
+                  : "No shared projects found with both actors"
+                : filterMode !== "all"
+                ? `No ${
+                    filterMode === "movies" ? "movies" : "TV shows"
+                  } available`
+                : "No credits available"}
             </Text>
           ) : (
-            commonFilms.map((film) => (
+            filteredMedia.map((media, index) => (
               <TouchableOpacity
-                key={film.id.toString()}
-                style={styles(colors).filmItem}
-                onPress={() => onFilmSelect && onFilmSelect(film)}
+                key={`${media.media_type}-${media.id}-${index}`}
+                style={styles(colors).mediaItem}
+                onPress={() => onFilmSelect && onFilmSelect(media)}
                 disabled={!onFilmSelect}
                 activeOpacity={onFilmSelect ? 0.7 : 1}
               >
-                <View style={styles(colors).filmItemContent}>
-                  {film.poster_path ? (
+                <View style={styles(colors).mediaItemContent}>
+                  {media.poster_path ? (
                     <Image
                       source={{
-                        uri: `https://image.tmdb.org/t/p/w92${film.poster_path}`,
+                        uri: `https://image.tmdb.org/t/p/w92${media.poster_path}`,
                       }}
                       style={styles(colors).poster}
                     />
@@ -122,31 +249,39 @@ const FilmDisplay = ({
                       <Text style={styles(colors).noImageText}>No Poster</Text>
                     </View>
                   )}
-                  <View style={styles(colors).filmInfo}>
-                    <Text style={styles(colors).filmTitle}>{film.title}</Text>
-                    <Text style={styles(colors).filmYear}>
-                      {film.release_date
-                        ? new Date(film.release_date).getFullYear()
-                        : "Unknown year"}
-                    </Text>
+                  <View style={styles(colors).mediaInfo}>
+                    <Text style={styles(colors).mediaTitle}>{media.title}</Text>
+                    <View style={styles(colors).mediaMetadata}>
+                      <Text style={styles(colors).mediaYear}>
+                        {getYear(media)}
+                      </Text>
+                      <Text style={styles(colors).mediaType}>
+                        {media.media_type === "tv" ? "TV Show" : "Movie"}
+                      </Text>
+                    </View>
 
-                    {/* Show character info for both actors when in common film mode */}
+                    {/* Show character info for both actors when in common media mode */}
                     {actor1Id && actor2Id ? (
                       <>
                         <Text style={styles(colors).character}>
                           {`${actor1Name} as: ${
-                            film.characterForActor1 || "Unknown role"
+                            media.characterForActor1 || "Unknown role"
                           }`}
                         </Text>
                         <Text style={styles(colors).character}>
                           {`${actor2Name} as: ${
-                            film.characterForActor2 || "Unknown role"
+                            media.characterForActor2 || "Unknown role"
                           }`}
                         </Text>
                       </>
                     ) : (
                       <Text style={styles(colors).character}>
-                        {`as: ${film.character || "Unknown role"}`}
+                        {`as: ${
+                          media.character ||
+                          media.characterForActor1 ||
+                          media.characterForActor2 ||
+                          "Unknown role"
+                        }`}
                       </Text>
                     )}
                   </View>
@@ -195,15 +330,42 @@ const styles = (colors: any) =>
       fontWeight: "500",
       marginLeft: 4,
     },
-    filmsContainer: {
+    // Filter controls
+    filterContainer: {
+      flexDirection: "row",
+      marginBottom: 10,
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingBottom: 8,
+    },
+    filterButton: {
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 16,
+      backgroundColor: colors.surface,
+    },
+    activeFilterButton: {
+      backgroundColor: colors.primary,
+    },
+    filterButtonText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    activeFilterText: {
+      color: "#FFF",
+      fontWeight: "600",
+    },
+    // Media container
+    mediaContainer: {
       flex: 1,
     },
-    filmItem: {
+    mediaItem: {
       padding: 8,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
     },
-    filmItemContent: {
+    mediaItemContent: {
       flexDirection: "row",
     },
     poster: {
@@ -225,21 +387,34 @@ const styles = (colors: any) =>
       fontSize: 10,
       textAlign: "center",
     },
-    filmInfo: {
+    mediaInfo: {
       marginLeft: 12,
       flex: 1,
       justifyContent: "center",
     },
-    filmTitle: {
+    mediaTitle: {
       fontSize: 16,
       fontWeight: "600",
       marginBottom: 2,
       color: colors.text,
     },
-    filmYear: {
+    mediaMetadata: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    mediaYear: {
       fontSize: 14,
       color: colors.textSecondary,
-      marginBottom: 2,
+      marginRight: 8,
+    },
+    mediaType: {
+      fontSize: 12,
+      backgroundColor: colors.surface || colors.card,
+      color: colors.textSecondary,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
     },
     character: {
       fontSize: 12,
