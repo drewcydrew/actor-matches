@@ -12,16 +12,22 @@ import {
 import tmdbApi, { Film, TVShow } from "../../api/tmdbApi";
 import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { SelectedActor } from "../../context/FilmContext";
 
 interface ActorFilmographyModalProps {
   actorId: number;
   actorName?: string;
   onSelectFilm1: (film: Film) => void;
   onSelectFilm2: (film: Film) => void;
+  onSelectActor1?: (actor: SelectedActor) => void; // New prop for actor 1 selection
+  onSelectActor2?: (actor: SelectedActor) => void; // New prop for actor 2 selection
   isVisible: boolean;
   onClose: () => void;
   selectedFilm1?: Film | null;
   selectedFilm2?: Film | null;
+  selectedActor1?: SelectedActor | null; // To check if this actor is already selected
+  selectedActor2?: SelectedActor | null; // To check if this actor is already selected
+  actorProfilePath?: string; // Added to pass the profile path
 }
 
 type MediaType = "movies" | "tv" | "all";
@@ -32,10 +38,15 @@ const ActorFilmographyModal = ({
   actorName = "Actor",
   onSelectFilm1,
   onSelectFilm2,
+  onSelectActor1,
+  onSelectActor2,
   isVisible,
   onClose,
   selectedFilm1,
   selectedFilm2,
+  selectedActor1,
+  selectedActor2,
+  actorProfilePath,
 }: ActorFilmographyModalProps) => {
   const { colors } = useTheme();
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -44,6 +55,11 @@ const ActorFilmographyModal = ({
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [showItemOptions, setShowItemOptions] = useState(false);
   const [mediaType, setMediaType] = useState<MediaType>("movies");
+  const [showActorOptions, setShowActorOptions] = useState(false); // New state for actor options
+
+  // Check if this actor is already selected as Actor 1 or Actor 2
+  const isSelectedAsActor1 = !!selectedActor1 && selectedActor1.id === actorId;
+  const isSelectedAsActor2 = !!selectedActor2 && selectedActor2.id === actorId;
 
   useEffect(() => {
     if (isVisible && actorId) {
@@ -139,6 +155,30 @@ const ActorFilmographyModal = ({
     onClose();
     setShowItemOptions(false);
     setSelectedItem(null);
+    setShowActorOptions(false); // Reset actor options state
+  };
+
+  // New function to handle actor selection
+  const handleSelectActor = (option: "actor1" | "actor2") => {
+    const actorData: SelectedActor = {
+      id: actorId,
+      name: actorName,
+      profile_path: actorProfilePath,
+    };
+
+    if (option === "actor1" && onSelectActor1) {
+      onSelectActor1(actorData);
+    } else if (option === "actor2" && onSelectActor2) {
+      onSelectActor2(actorData);
+    }
+
+    // Close the options dialog but keep the modal open
+    setShowActorOptions(false);
+  };
+
+  // Function to open the actor selection options dialog
+  const openActorOptions = () => {
+    setShowActorOptions(true);
   };
 
   const renderMediaItem = ({ item }: { item: MediaItem }) => {
@@ -225,12 +265,24 @@ const ActorFilmographyModal = ({
             <Text style={styles(colors).modalTitle}>
               Credits for {actorName}
             </Text>
-            <TouchableOpacity
-              style={styles(colors).closeButton}
-              onPress={handleCloseModal}
-            >
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
+
+            {/* Add a button to open actor selection options */}
+            <View style={styles(colors).headerActions}>
+              <TouchableOpacity
+                style={styles(colors).selectActorButton}
+                onPress={openActorOptions}
+              >
+                <Ionicons name="person-add" size={20} color={colors.primary} />
+                <Text style={styles(colors).selectActorText}>Select Actor</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles(colors).closeButton}
+                onPress={handleCloseModal}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Media type selector */}
@@ -355,6 +407,58 @@ const ActorFilmographyModal = ({
                     setShowItemOptions(false);
                     setSelectedItem(null);
                   }}
+                >
+                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* New actor selection options overlay */}
+          {showActorOptions && (
+            <View style={styles(colors).optionsOverlay}>
+              <View style={styles(colors).optionsContainer}>
+                <Text style={styles(colors).optionsTitle}>
+                  Select {actorName} as
+                </Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).optionButton,
+                    isSelectedAsActor1 && styles(colors).selectedOptionButton,
+                  ]}
+                  onPress={() => handleSelectActor("actor1")}
+                  disabled={isSelectedAsActor1}
+                >
+                  <Ionicons name="person-outline" size={20} color={colors.text} />
+                  <Text style={styles(colors).optionText}>
+                    {isSelectedAsActor1 ? "Already selected as Actor 1" : "Actor 1"}
+                    {selectedActor1 && !isSelectedAsActor1
+                      ? ` (replaces ${selectedActor1.name})`
+                      : ""}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).optionButton,
+                    isSelectedAsActor2 && styles(colors).selectedOptionButton,
+                  ]}
+                  onPress={() => handleSelectActor("actor2")}
+                  disabled={isSelectedAsActor2}
+                >
+                  <Ionicons name="person-outline" size={20} color={colors.text} />
+                  <Text style={styles(colors).optionText}>
+                    {isSelectedAsActor2 ? "Already selected as Actor 2" : "Actor 2"}
+                    {selectedActor2 && !isSelectedAsActor2
+                      ? ` (replaces ${selectedActor2.name})`
+                      : ""}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles(colors).cancelButton}
+                  onPress={() => setShowActorOptions(false)}
                 >
                   <Text style={styles(colors).cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -571,6 +675,30 @@ const styles = (colors: any) =>
       fontSize: 14,
       color: colors.primary,
       fontWeight: "600",
+    },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    selectActorButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: 12,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    selectActorText: {
+      color: colors.primary,
+      fontSize: 12,
+      marginLeft: 4,
+      fontWeight: "500",
+    },
+    selectedOptionButton: {
+      backgroundColor: colors.primary + "20", // Semi-transparent version of primary color
+      borderColor: colors.primary,
     },
   });
 

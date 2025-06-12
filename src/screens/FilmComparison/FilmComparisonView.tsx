@@ -17,6 +17,10 @@ const FilmComparisonView = () => {
     selectedMediaItem2,
     setSelectedMediaItem1,
     setSelectedMediaItem2,
+    selectedCastMember1,
+    selectedCastMember2,
+    setSelectedCastMember1,
+    setSelectedCastMember2,
   } = useFilmContext();
 
   // Local state for filmography modal
@@ -72,13 +76,14 @@ const FilmComparisonView = () => {
         <ActorFilmographyModal
           actorId={selectedActor.id}
           actorName={selectedActor.name}
+          actorProfilePath={selectedActor.profile_path}
           isVisible={isActorFilmographyVisible}
           onClose={() => {
             setIsActorFilmographyVisible(false);
             setSelectedActor(null);
           }}
+          // Film selection handlers
           onSelectFilm1={(film) => {
-            // Convert film to MediaItem
             setSelectedMediaItem1({
               ...film,
               media_type: "movie",
@@ -87,7 +92,6 @@ const FilmComparisonView = () => {
             setIsActorFilmographyVisible(false);
           }}
           onSelectFilm2={(film) => {
-            // Convert film to MediaItem
             setSelectedMediaItem2({
               ...film,
               media_type: "movie",
@@ -95,8 +99,18 @@ const FilmComparisonView = () => {
             setSelectedActor(null);
             setIsActorFilmographyVisible(false);
           }}
+          // New actor selection handlers
+          onSelectActor1={(actor) => {
+            setSelectedCastMember1(actor);
+          }}
+          onSelectActor2={(actor) => {
+            setSelectedCastMember2(actor);
+          }}
+          // Current selections for films and actors
           selectedFilm1={convertMediaItemToFilm(selectedMediaItem1)}
           selectedFilm2={convertMediaItemToFilm(selectedMediaItem2)}
+          selectedActor1={selectedCastMember1}
+          selectedActor2={selectedCastMember2}
         />
       )}
     </>
