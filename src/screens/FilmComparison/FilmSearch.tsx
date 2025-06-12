@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -14,6 +14,15 @@ import { Film, TVShow } from "../../api/tmdbApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext, MediaItem } from "../../context/FilmContext";
+
+// Add debounce helper function for smoother autocomplete
+const debounce = (func: Function, delay: number) => {
+  let timer: NodeJS.Timeout;
+  return function (this: any, ...args: any[]) {
+    clearTimeout(timer);
+    timer = setTimeout(() => func.apply(this, args), delay);
+  };
+};
 
 // Define SearchItem type for local component use
 type SearchItem =
@@ -46,6 +55,82 @@ const FilmSearch = ({
   // Modal state (replacing expanded state)
   const [isModalVisible, setIsModalVisible] = useState(false);
 
+  // New state for autocomplete
+  const [isAutocompleting, setIsAutocompleting] = useState(false);
+
+  // Create debounced search function for autocomplete
+  const debouncedSearch = useCallback(
+    debounce(async (query: string, mode: "movies" | "tv") => {
+      if (!query.trim() || query.length < 2) {
+        setSearchResults([]);
+        setIsAutocompleting(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+      setIsAutocompleting(true);
+
+      try {
+        if (mode === "movies") {
+          const { results, error: searchError } = await searchFilms(query);
+
+          if (searchError) {
+            setError(searchError);
+            setSearchResults([]);
+          } else if (results.length > 0) {
+            // Add media_type to movie results and show top 6 for autocomplete
+            setSearchResults(
+              results
+                .map((movie) => ({ ...movie, media_type: "movie" as const }))
+                .slice(0, 6)
+            );
+          } else {
+            setSearchResults([]);
+            setError("No matching films found");
+          }
+        } else {
+          // Handle TV show search
+          const { results, error: searchError } = await searchTVShows(query);
+
+          if (searchError) {
+            setError(searchError);
+            setSearchResults([]);
+          } else if (results.length > 0) {
+            // Add media_type property to TV shows and show top 6 for autocomplete
+            setSearchResults(
+              results
+                .map((show) => ({ ...show, media_type: "tv" as const }))
+                .slice(0, 6)
+            );
+          } else {
+            setSearchResults([]);
+            setError("No matching TV shows found");
+          }
+        }
+      } catch (err) {
+        console.error("Autocomplete error:", err);
+        setSearchResults([]);
+        setError(`Error searching for ${mode === "movies" ? "films" : "TV shows"}`);
+      } finally {
+        setLoading(false);
+      }
+    }, 300), // 300ms delay before searching
+    [searchFilms, searchTVShows]
+  );
+
+  // Handle input changes and trigger autocomplete
+  const handleInputChange = (text: string) => {
+    setSearchQuery(text);
+    if (text.length >= 2) {
+      debouncedSearch(text, searchMode);
+    } else {
+      setSearchResults([]);
+      setIsAutocompleting(false);
+      setError("");
+    }
+  };
+
   // Handle clear media selection
   const handleClearMedia = (event: any) => {
     // Stop the event from propagating to parent (which would open the modal)
@@ -61,6 +146,11 @@ const FilmSearch = ({
     if (onExpandStateChange) {
       onExpandStateChange(newModalState);
     }
+
+    // Reset autocomplete when opening/closing modal
+    if (!isModalVisible) {
+      setIsAutocompleting(false);
+    }
   };
 
   // Function to clear search
@@ -68,9 +158,10 @@ const FilmSearch = ({
     setSearchQuery("");
     setSearchResults([]);
     setError("");
+    setIsAutocompleting(false);
   };
 
-  // Function to handle media search
+  // Function to handle media search (full search)
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
       setError("Please enter a title");
@@ -80,6 +171,7 @@ const FilmSearch = ({
     setLoading(true);
     setError("");
     setSearchResults([]);
+    setIsAutocompleting(false); // We're doing a full search, not autocomplete
 
     try {
       if (searchMode === "movies") {
@@ -306,7 +398,12 @@ const FilmSearch = ({
                   searchMode === "movies" &&
                     styles(colors).selectedMediaTypeButton,
                 ]}
-                onPress={() => setSearchMode("movies")}
+                onPress={() => {
+                  setSearchMode("movies");
+                  if (searchQuery.length >= 2) {
+                    debouncedSearch(searchQuery, "movies");
+                  }
+                }}
               >
                 <Text
                   style={[
@@ -324,7 +421,12 @@ const FilmSearch = ({
                   styles(colors).mediaTypeButton,
                   searchMode === "tv" && styles(colors).selectedMediaTypeButton,
                 ]}
-                onPress={() => setSearchMode("tv")}
+                onPress={() => {
+                  setSearchMode("tv");
+                  if (searchQuery.length >= 2) {
+                    debouncedSearch(searchQuery, "tv");
+                  }
+                }}
               >
                 <Text
                   style={[
@@ -348,7 +450,7 @@ const FilmSearch = ({
                     } title`}
                     placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
-                    onChangeText={setSearchQuery}
+                    onChangeText={handleInputChange}
                     autoFocus={true}
                   />
                   {searchQuery.length > 0 && (
@@ -372,29 +474,63 @@ const FilmSearch = ({
                 </TouchableOpacity>
               </View>
 
-              {error ? <Text style={styles(colors).error}>{error}</Text> : null}
-
-              {/* Results area */}
-              {loading ? (
-                <ActivityIndicator size="large" color={colors.primary} />
-              ) : (
-                <FlatList
-                  data={searchResults}
-                  renderItem={renderMediaItem}
-                  keyExtractor={(item) =>
-                    `${item.media_type || "movie"}-${item.id}`
-                  }
-                  style={styles(colors).list}
-                  ListEmptyComponent={
-                    !error && !loading ? (
-                      <Text style={styles(colors).emptyText}>
-                        Search for{" "}
-                        {searchMode === "movies" ? "a film" : "a TV show"} to
-                        see results
+              {/* Autocomplete suggestions */}
+              {isAutocompleting && searchQuery.length >= 2 && (
+                <View style={styles(colors).autoCompleteContainer}>
+                  {loading ? (
+                    <View style={styles(colors).autocompleteLoading}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={styles(colors).autocompleteLoadingText}>
+                        Finding {searchMode === "movies" ? "movies" : "TV shows"}...
                       </Text>
-                    ) : null
-                  }
-                />
+                    </View>
+                  ) : searchResults.length > 0 ? (
+                    <>
+                      <Text style={styles(colors).suggestionsTitle}>
+                        Suggestions
+                      </Text>
+                      <FlatList
+                        data={searchResults}
+                        renderItem={renderMediaItem}
+                        keyExtractor={(item) =>
+                          `${item.media_type || "movie"}-${item.id}`
+                        }
+                        style={styles(colors).autoCompleteList}
+                      />
+                    </>
+                  ) : error ? (
+                    <Text style={styles(colors).autocompleteError}>{error}</Text>
+                  ) : null}
+                </View>
+              )}
+
+              {/* Show full search results when not in autocomplete mode */}
+              {!isAutocompleting && (
+                <>
+                  {error ? <Text style={styles(colors).error}>{error}</Text> : null}
+
+                  {loading ? (
+                    <ActivityIndicator size="large" color={colors.primary} />
+                  ) : (
+                    <FlatList
+                      data={searchResults}
+                      renderItem={renderMediaItem}
+                      keyExtractor={(item) =>
+                        `${item.media_type || "movie"}-${item.id}`
+                      }
+                      style={styles(colors).list}
+                      ListEmptyComponent={
+                        !error && !loading ? (
+                          <Text style={styles(colors).emptyText}>
+                            Search for{" "}
+                            {searchMode === "movies" ? "a film" : "a TV show"} to
+                            see results
+                          </Text>
+                        ) : null
+                      }
+                    />
+                  )}
+                </>
               )}
             </View>
           </View>
@@ -404,7 +540,7 @@ const FilmSearch = ({
   );
 };
 
-// Updated styles with renamed classes for clarity
+// Updated styles
 const styles = (colors: any) =>
   StyleSheet.create({
     // Existing styles with renamed properties
@@ -625,6 +761,49 @@ const styles = (colors: any) =>
       marginTop: 20,
       color: colors.textSecondary,
       fontSize: 14,
+    },
+    // Add new styles for autocomplete
+    autoCompleteContainer: {
+      backgroundColor: colors.surface || colors.background,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 4,
+      maxHeight: 300,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 3,
+      paddingVertical: 5,
+    },
+    autoCompleteList: {
+      maxHeight: 280,
+    },
+    suggestionsTitle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      paddingHorizontal: 12,
+      paddingBottom: 4,
+      marginBottom: 2,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    autocompleteLoading: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 12,
+    },
+    autocompleteLoadingText: {
+      marginLeft: 8,
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    autocompleteError: {
+      padding: 12,
+      color: colors.error,
+      textAlign: "center",
     },
   });
 

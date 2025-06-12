@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,6 +13,15 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext, Actor } from "../../context/FilmContext";
+
+// Add debounce helper function for smoother autocomplete
+const debounce = (func: Function, delay: number) => {
+  let timer: NodeJS.Timeout;
+  return function (this: any, ...args: any[]) {
+    clearTimeout(timer);
+    timer = setTimeout(() => func.apply(this, args), delay);
+  };
+};
 
 interface ActorSearchProps {
   onSelectActor: (actor: Actor | null) => void; // Updated to accept null
@@ -38,6 +47,56 @@ const ActorSearch = ({
   const [error, setError] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [initialSearchDone, setInitialSearchDone] = useState(false);
+  // New state for handling autocomplete
+  const [isAutocompleting, setIsAutocompleting] = useState(false);
+
+  // Create debounced search function for autocomplete
+  const debouncedSearch = useCallback(
+    debounce(async (query: string) => {
+      if (!query.trim() || query.length < 2) {
+        setActors([]);
+        setIsAutocompleting(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+      setIsAutocompleting(true);
+
+      try {
+        const { results, error: searchError } = await searchActors(query);
+
+        if (searchError) {
+          setError(searchError);
+          setActors([]);
+        } else if (results.length > 0) {
+          setActors(results.slice(0, 6)); // Show top 6 results for autocomplete
+        } else {
+          setActors([]);
+          setError("No matching actors found");
+        }
+      } catch (err) {
+        console.error("Autocomplete error:", err);
+        setActors([]);
+        setError("Error searching for actors");
+      } finally {
+        setLoading(false);
+      }
+    }, 300), // 300ms delay before searching
+    [searchActors]
+  );
+
+  // Handle input changes and trigger autocomplete
+  const handleInputChange = (text: string) => {
+    setSearchQuery(text);
+    if (text.length >= 2) {
+      debouncedSearch(text);
+    } else {
+      setActors([]);
+      setIsAutocompleting(false);
+      setError("");
+    }
+  };
 
   // Handle clear actor selection
   const handleClearActor = (event: any) => {
@@ -89,14 +148,20 @@ const ActorSearch = ({
 
   const toggleModal = () => {
     setIsModalVisible(!isModalVisible);
+    // Reset autocomplete when opening/closing modal
+    if (!isModalVisible) {
+      setIsAutocompleting(false);
+    }
   };
 
   const clearSearch = () => {
     setSearchQuery("");
     setActors([]);
     setError("");
+    setIsAutocompleting(false);
   };
 
+  // Full search function (keeps existing functionality)
   const handleSearchActors = async () => {
     if (!searchQuery.trim()) {
       setError("Please enter an actor's name");
@@ -106,6 +171,7 @@ const ActorSearch = ({
     setLoading(true);
     setError("");
     setActors([]);
+    setIsAutocompleting(false); // We're doing a full search, not autocomplete
 
     try {
       const { results, error: searchError } = await searchActors(searchQuery);
@@ -276,7 +342,7 @@ const ActorSearch = ({
                     placeholder="Enter actor name"
                     placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
-                    onChangeText={setSearchQuery}
+                    onChangeText={handleInputChange} // Use new handler for autocomplete
                     autoFocus={true}
                   />
                   {searchQuery.length > 0 && (
@@ -300,24 +366,57 @@ const ActorSearch = ({
                 </TouchableOpacity>
               </View>
 
-              {error ? <Text style={styles(colors).error}>{error}</Text> : null}
-
-              {loading ? (
-                <ActivityIndicator size="large" color={colors.primary} />
-              ) : (
-                <FlatList
-                  data={actors}
-                  renderItem={renderActor}
-                  keyExtractor={(item) => item.id.toString()}
-                  style={styles(colors).list}
-                  ListEmptyComponent={
-                    !error && !loading ? (
-                      <Text style={styles(colors).emptyText}>
-                        Search for an actor to see results
+              {/* Autocomplete suggestions */}
+              {isAutocompleting && searchQuery.length >= 2 && (
+                <View style={styles(colors).autoCompleteContainer}>
+                  {loading ? (
+                    <View style={styles(colors).autocompleteLoading}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                      <Text style={styles(colors).autocompleteLoadingText}>
+                        Finding actors...
                       </Text>
-                    ) : null
-                  }
-                />
+                    </View>
+                  ) : actors.length > 0 ? (
+                    <>
+                      <Text style={styles(colors).suggestionsTitle}>
+                        Suggestions
+                      </Text>
+                      <FlatList
+                        data={actors}
+                        renderItem={renderActor}
+                        keyExtractor={(item) => item.id.toString()}
+                        style={styles(colors).autoCompleteList}
+                      />
+                    </>
+                  ) : error ? (
+                    <Text style={styles(colors).autocompleteError}>{error}</Text>
+                  ) : null}
+                </View>
+              )}
+
+              {/* Show full search results when not in autocomplete mode */}
+              {!isAutocompleting && (
+                <>
+                  {error ? <Text style={styles(colors).error}>{error}</Text> : null}
+
+                  {loading ? (
+                    <ActivityIndicator size="large" color={colors.primary} />
+                  ) : (
+                    <FlatList
+                      data={actors}
+                      renderItem={renderActor}
+                      keyExtractor={(item) => item.id.toString()}
+                      style={styles(colors).list}
+                      ListEmptyComponent={
+                        !error && !loading ? (
+                          <Text style={styles(colors).emptyText}>
+                            Search for an actor to see results
+                          </Text>
+                        ) : null
+                      }
+                    />
+                  )}
+                </>
               )}
             </View>
           </View>
@@ -532,6 +631,49 @@ const styles = (colors: any) =>
       marginTop: 20,
       color: colors.textSecondary,
       fontSize: 14,
+    },
+    // Add new styles for autocomplete
+    autoCompleteContainer: {
+      backgroundColor: colors.surface || colors.background,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 4,
+      maxHeight: 300,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+      elevation: 3,
+      paddingVertical: 5,
+    },
+    autoCompleteList: {
+      maxHeight: 280,
+    },
+    suggestionsTitle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      paddingHorizontal: 12,
+      paddingBottom: 4,
+      marginBottom: 2,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    autocompleteLoading: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 12,
+    },
+    autocompleteLoadingText: {
+      marginLeft: 8,
+      color: colors.textSecondary,
+      fontSize: 14,
+    },
+    autocompleteError: {
+      padding: 12,
+      color: colors.error,
+      textAlign: "center",
     },
   });
 
