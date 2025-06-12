@@ -1,7 +1,6 @@
 import axios from 'axios';
 //import { TMDB_API_KEY } from '@env';
 
-
 // Define interfaces for type safety
 export interface Film {
   id: number;
@@ -77,6 +76,24 @@ export interface CastMember {
 export interface MovieCredits {
   id: number;
   cast: CastMember[];
+}
+
+// New interface for aggregate TV credits
+export interface TVShowAggregateCredits {
+  id: number;
+  cast: {
+    id: number;
+    name: string;
+    roles: {
+      character: string;
+      episode_count: number;
+    }[];
+    total_episode_count: number;
+    order: number;
+    profile_path?: string;
+    gender?: number;
+    popularity?: number;
+  }[];
 }
 
 // API Key configuration
@@ -169,6 +186,17 @@ export const getTVShowCast = async (tvId: number): Promise<TVShowCredits> => {
   }
 };
 
+// New method to get comprehensive TV show cast using aggregate credits
+export const getTVShowAggregateCredits = async (tvId: number): Promise<TVShowAggregateCredits> => {
+  try {
+    const response = await tmdbApi.get(`/tv/${tvId}/aggregate_credits`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching TV show aggregate credits:', error);
+    throw error;
+  }
+};
+
 export default {
   searchActor,
   getActorMovieCredits,
@@ -176,5 +204,6 @@ export default {
   searchMovies,
   getMovieCast,
   searchTVShows,
-  getTVShowCast
+  getTVShowCast,
+  getTVShowAggregateCredits // Add the new function to the exports
 };

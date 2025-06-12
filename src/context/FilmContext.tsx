@@ -420,10 +420,32 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         // Check if this is a TV show or a movie
         const isTV = activeMedia.media_type === "tv";
 
+        let castData;
+        
         // Fetch the appropriate cast data
-        const castData = isTV
-          ? await tmdbApi.getTVShowCast(activeMedia.id)
-          : await tmdbApi.getMovieCast(activeMedia.id);
+        if (isTV) {
+          // Use aggregate credits for TV shows to get a more comprehensive cast list
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(activeMedia.id);
+          
+          // Transform aggregate credits format to match our CastMember interface
+          castData = {
+            cast: aggregateCredits.cast.map(actor => ({
+              id: actor.id,
+              name: actor.name,
+              // Use the first character role or combine multiple roles
+              character: actor.roles && actor.roles.length > 0 
+                ? actor.roles.map(role => role.character).join(', ')
+                : "Unknown role",
+              profile_path: actor.profile_path,
+              order: actor.order,
+              gender: actor.gender,
+              popularity: actor.popularity,
+              total_episode_count: actor.total_episode_count
+            }))
+          };
+        } else {
+          castData = await tmdbApi.getMovieCast(activeMedia.id);
+        }
 
         if (castData.cast && castData.cast.length > 0) {
           setCastMembers(
@@ -459,13 +481,45 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         const isMedia2TV = selectedMediaItem2.media_type === "tv";
 
         // Fetch appropriate cast for each media item
-        const cast1Data = isMedia1TV
-          ? await tmdbApi.getTVShowCast(selectedMediaItem1.id)
-          : await tmdbApi.getMovieCast(selectedMediaItem1.id);
+        let cast1Data, cast2Data;
 
-        const cast2Data = isMedia2TV
-          ? await tmdbApi.getTVShowCast(selectedMediaItem2.id)
-          : await tmdbApi.getMovieCast(selectedMediaItem2.id);
+        if (isMedia1TV) {
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(selectedMediaItem1.id);
+          cast1Data = {
+            cast: aggregateCredits.cast.map(actor => ({
+              id: actor.id,
+              name: actor.name,
+              character: actor.roles && actor.roles.length > 0 
+                ? actor.roles.map(role => role.character).join(', ')
+                : "Unknown role",
+              profile_path: actor.profile_path,
+              order: actor.order,
+              gender: actor.gender,
+              popularity: actor.popularity
+            }))
+          };
+        } else {
+          cast1Data = await tmdbApi.getMovieCast(selectedMediaItem1.id);
+        }
+
+        if (isMedia2TV) {
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(selectedMediaItem2.id);
+          cast2Data = {
+            cast: aggregateCredits.cast.map(actor => ({
+              id: actor.id,
+              name: actor.name,
+              character: actor.roles && actor.roles.length > 0 
+                ? actor.roles.map(role => role.character).join(', ')
+                : "Unknown role",
+              profile_path: actor.profile_path,
+              order: actor.order,
+              gender: actor.gender,
+              popularity: actor.popularity
+            }))
+          };
+        } else {
+          cast2Data = await tmdbApi.getMovieCast(selectedMediaItem2.id);
+        }
 
         if (
           cast1Data.cast &&
