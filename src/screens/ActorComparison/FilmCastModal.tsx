@@ -9,9 +9,10 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { CastMember } from "../../api/tmdbApi";
+import tmdbApi, { CastMember, Film } from "../../api/tmdbApi";
 import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { MediaItem } from "../../context/FilmContext";
 
 // Define an Actor interface for our component
 export interface Actor {
@@ -24,23 +25,37 @@ export interface Actor {
 interface FilmCastModalProps {
   filmId: number;
   filmTitle?: string;
+  filmPosterPath?: string;
+  mediaType?: "movie" | "tv";  // Add media type to handle both movies and TV shows
   onSelectActor1: (actor: Actor) => void;
   onSelectActor2: (actor: Actor) => void;
+  // New props for film selection
+  onSelectFilm1?: (film: MediaItem) => void;
+  onSelectFilm2?: (film: MediaItem) => void;
   isVisible: boolean;
   onClose: () => void;
   selectedActor1?: Actor | null;
   selectedActor2?: Actor | null;
+  // Add selected films for comparison
+  selectedFilm1?: MediaItem | null;
+  selectedFilm2?: MediaItem | null;
 }
 
 const FilmCastModal = ({
   filmId,
   filmTitle = "Film",
+  filmPosterPath,
+  mediaType = "movie",
   onSelectActor1,
   onSelectActor2,
+  onSelectFilm1,
+  onSelectFilm2,
   isVisible,
   onClose,
   selectedActor1,
   selectedActor2,
+  selectedFilm1,
+  selectedFilm2,
 }: FilmCastModalProps) => {
   const { colors } = useTheme();
   const [cast, setCast] = useState<CastMember[]>([]);
@@ -48,6 +63,12 @@ const FilmCastModal = ({
   const [error, setError] = useState("");
   const [selectedActor, setSelectedActor] = useState<CastMember | null>(null);
   const [showActorOptions, setShowActorOptions] = useState(false);
+  // Add state for film selection
+  const [showFilmOptions, setShowFilmOptions] = useState(false);
+
+  // Check if this film is already selected as Film 1 or Film 2
+  const isSelectedAsFilm1 = !!selectedFilm1 && selectedFilm1.id === filmId;
+  const isSelectedAsFilm2 = !!selectedFilm2 && selectedFilm2.id === filmId;
 
   useEffect(() => {
     const fetchCast = async () => {
@@ -55,19 +76,38 @@ const FilmCastModal = ({
         setLoading(true);
         setError("");
 
-        const response = await tmdbApi.getMovieCast(filmId);
-
-        if (response && response.cast && response.cast.length > 0) {
-          // Sort by order (prominence in the film)
-          const sortedCast = [...response.cast].sort(
-            (a, b) => a.order - b.order
-          );
-          setCast(sortedCast);
+        let response;
+        // Fetch cast based on media type
+        if (mediaType === "tv") {
+          response = await tmdbApi.getTVShowAggregateCredits(filmId);
+          // Transform TV show aggregate credits to match CastMember format
+          if (response && response.cast && response.cast.length > 0) {
+            const transformedCast = response.cast.map(actor => ({
+              id: actor.id,
+              name: actor.name,
+              // Use the first character role or combine them
+              character: actor.roles && actor.roles.length > 0
+                ? actor.roles.map(role => role.character).join(', ')
+                : "Unknown role",
+              profile_path: actor.profile_path,
+              order: actor.order || 0,
+              gender: actor.gender,
+              popularity: actor.popularity
+            }));
+            setCast(transformedCast);
+          }
         } else {
-          setError("No cast found for this film");
+          response = await tmdbApi.getMovieCast(filmId);
+          if (response && response.cast && response.cast.length > 0) {
+            setCast(response.cast);
+          }
+        }
+
+        if (!response || !response.cast || response.cast.length === 0) {
+          setError(`No cast found for this ${mediaType === "tv" ? "TV show" : "film"}`);
         }
       } catch (err) {
-        console.error("Failed to fetch film's cast:", err);
+        console.error(`Failed to fetch ${mediaType === "tv" ? "TV show" : "film"}'s cast:`, err);
         setError("Failed to load cast information");
       } finally {
         setLoading(false);
@@ -77,7 +117,7 @@ const FilmCastModal = ({
     if (isVisible && filmId) {
       fetchCast();
     }
-  }, [filmId, isVisible]);
+  }, [filmId, isVisible, mediaType]);
 
   const handleActorPress = (actor: CastMember) => {
     setSelectedActor(actor);
@@ -106,10 +146,38 @@ const FilmCastModal = ({
     }
   };
 
+  // New function to handle film selection
+  const handleSelectFilm = (option: "film1" | "film2") => {
+    if (!onSelectFilm1 && !onSelectFilm2) return;
+    
+    const filmItem: MediaItem = {
+      id: filmId,
+      title: filmTitle,
+      poster_path: filmPosterPath,
+      popularity: 0, // Default value
+      media_type: mediaType,
+    };
+
+    if (option === "film1" && onSelectFilm1) {
+      onSelectFilm1(filmItem);
+    } else if (option === "film2" && onSelectFilm2) {
+      onSelectFilm2(filmItem);
+    }
+
+    // Close the options dialog but keep the modal open
+    setShowFilmOptions(false);
+  };
+
+  // Function to open the film selection options dialog
+  const openFilmOptions = () => {
+    setShowFilmOptions(true);
+  };
+
   const handleCloseModal = () => {
     onClose();
     setShowActorOptions(false);
     setSelectedActor(null);
+    setShowFilmOptions(false);
   };
 
   const renderActor = ({ item }: { item: CastMember }) => (
@@ -162,6 +230,9 @@ const FilmCastModal = ({
     </TouchableOpacity>
   );
 
+  // Show select film button only if film selection handlers are provided
+  const canSelectFilm = onSelectFilm1 || onSelectFilm2;
+
   return (
     <Modal
       visible={isVisible}
@@ -174,12 +245,26 @@ const FilmCastModal = ({
           {/* Modal header */}
           <View style={styles(colors).modalHeader}>
             <Text style={styles(colors).modalTitle}>Cast of {filmTitle}</Text>
-            <TouchableOpacity
-              style={styles(colors).closeButton}
-              onPress={handleCloseModal}
-            >
-              <Ionicons name="close" size={24} color={colors.text} />
-            </TouchableOpacity>
+            
+            {/* Add header actions with Select Film button */}
+            <View style={styles(colors).headerActions}>
+              {canSelectFilm && (
+                <TouchableOpacity
+                  style={styles(colors).selectFilmButton}
+                  onPress={openFilmOptions}
+                >
+                  <Ionicons name="film" size={20} color={colors.primary} />
+                  <Text style={styles(colors).selectFilmText}>Select Film</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity
+                style={styles(colors).closeButton}
+                onPress={handleCloseModal}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Cast content */}
@@ -250,6 +335,58 @@ const FilmCastModal = ({
                     setShowActorOptions(false);
                     setSelectedActor(null);
                   }}
+                >
+                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* New film selection options overlay */}
+          {showFilmOptions && (
+            <View style={styles(colors).optionsOverlay}>
+              <View style={styles(colors).optionsContainer}>
+                <Text style={styles(colors).optionsTitle}>
+                  Select {filmTitle} as
+                </Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).optionButton,
+                    isSelectedAsFilm1 && styles(colors).selectedOptionButton,
+                  ]}
+                  onPress={() => handleSelectFilm("film1")}
+                  disabled={isSelectedAsFilm1}
+                >
+                  <Ionicons name="film-outline" size={20} color={colors.text} />
+                  <Text style={styles(colors).optionText}>
+                    {isSelectedAsFilm1 ? "Already selected as Film 1" : "Film 1"}
+                    {selectedFilm1 && !isSelectedAsFilm1 
+                      ? ` (replaces ${selectedFilm1.title})` 
+                      : ""}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).optionButton,
+                    isSelectedAsFilm2 && styles(colors).selectedOptionButton,
+                  ]}
+                  onPress={() => handleSelectFilm("film2")}
+                  disabled={isSelectedAsFilm2}
+                >
+                  <Ionicons name="film-outline" size={20} color={colors.text} />
+                  <Text style={styles(colors).optionText}>
+                    {isSelectedAsFilm2 ? "Already selected as Film 2" : "Film 2"}
+                    {selectedFilm2 && !isSelectedAsFilm2 
+                      ? ` (replaces ${selectedFilm2.title})` 
+                      : ""}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles(colors).cancelButton}
+                  onPress={() => setShowFilmOptions(false)}
                 >
                   <Text style={styles(colors).cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -429,6 +566,30 @@ const styles = (colors: any) =>
       fontSize: 14,
       color: colors.primary,
       fontWeight: "600",
+    },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    selectFilmButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginRight: 12,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    selectFilmText: {
+      color: colors.primary,
+      fontSize: 12,
+      marginLeft: 4,
+      fontWeight: "500",
+    },
+    selectedOptionButton: {
+      backgroundColor: colors.primary + '20',  // Semi-transparent version of primary color
+      borderColor: colors.primary,
     },
   });
 

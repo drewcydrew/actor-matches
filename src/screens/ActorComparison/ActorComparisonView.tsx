@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext } from "../../context/FilmContext";
+import { useFilmContext, MediaItem } from "../../context/FilmContext"; // Import MediaItem
 import ActorSearch from "./ActorSearch";
 import FilmDisplay from "./FilmDisplay";
 import FilmCastModal from "./FilmCastModal";
-import { Film } from "../../api/tmdbApi";
 
 const ActorComparisonView = () => {
   const { colors } = useTheme();
@@ -14,10 +13,15 @@ const ActorComparisonView = () => {
     selectedCastMember2,
     setSelectedCastMember1,
     setSelectedCastMember2,
+    selectedMediaItem1,
+    selectedMediaItem2,
+    setSelectedMediaItem1,
+    setSelectedMediaItem2,
   } = useFilmContext();
 
   const [isFilmCastVisible, setIsFilmCastVisible] = useState(false);
-  const [selectedFilmForCast, setSelectedFilmForCast] = useState<Film | null>(
+  // Change type from Film to MediaItem
+  const [selectedFilmForCast, setSelectedFilmForCast] = useState<MediaItem | null>(
     null
   );
 
@@ -51,8 +55,13 @@ const ActorComparisonView = () => {
           <FilmCastModal
             filmId={selectedFilmForCast.id}
             filmTitle={selectedFilmForCast.title}
+            filmPosterPath={selectedFilmForCast.poster_path}
+            mediaType={selectedFilmForCast.media_type}
             isVisible={isFilmCastVisible}
-            onClose={() => setIsFilmCastVisible(false)}
+            onClose={() => {
+              setIsFilmCastVisible(false);
+              setSelectedFilmForCast(null);
+            }}
             onSelectActor1={(actor) => {
               setSelectedCastMember1(actor);
               setIsFilmCastVisible(false);
@@ -63,8 +72,18 @@ const ActorComparisonView = () => {
               setIsFilmCastVisible(false);
               setSelectedFilmForCast(null);
             }}
+            // Add these new props for film selection
+            onSelectFilm1={(film) => {
+              setSelectedMediaItem1(film);
+            }}
+            onSelectFilm2={(film) => {
+              setSelectedMediaItem2(film);
+            }}
             selectedActor1={selectedCastMember1}
             selectedActor2={selectedCastMember2}
+            // Pass the current selected films
+            selectedFilm1={selectedMediaItem1}
+            selectedFilm2={selectedMediaItem2}
           />
         )}
       </View>
