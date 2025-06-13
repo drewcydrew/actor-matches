@@ -262,9 +262,7 @@ const ActorFilmographyModal = ({
         <View style={styles(colors).modalContent}>
           {/* Modal header */}
           <View style={styles(colors).modalHeader}>
-            <Text style={styles(colors).modalTitle}>
-              Credits for {actorName}
-            </Text>
+            <Text style={styles(colors).modalTitle}>{actorName}</Text>
 
             {/* Add a button to open actor selection options */}
             <View style={styles(colors).headerActions}>
@@ -430,9 +428,15 @@ const ActorFilmographyModal = ({
                   onPress={() => handleSelectActor("actor1")}
                   disabled={isSelectedAsActor1}
                 >
-                  <Ionicons name="person-outline" size={20} color={colors.text} />
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color={colors.text}
+                  />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsActor1 ? "Already selected as Actor 1" : "Actor 1"}
+                    {isSelectedAsActor1
+                      ? "Already selected as Actor 1"
+                      : "Actor 1"}
                     {selectedActor1 && !isSelectedAsActor1
                       ? ` (replaces ${selectedActor1.name})`
                       : ""}
@@ -447,9 +451,15 @@ const ActorFilmographyModal = ({
                   onPress={() => handleSelectActor("actor2")}
                   disabled={isSelectedAsActor2}
                 >
-                  <Ionicons name="person-outline" size={20} color={colors.text} />
+                  <Ionicons
+                    name="person-outline"
+                    size={20}
+                    color={colors.text}
+                  />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsActor2 ? "Already selected as Actor 2" : "Actor 2"}
+                    {isSelectedAsActor2
+                      ? "Already selected as Actor 2"
+                      : "Actor 2"}
                     {selectedActor2 && !isSelectedAsActor2
                       ? ` (replaces ${selectedActor2.name})`
                       : ""}
@@ -496,7 +506,7 @@ const styles = (colors: any) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      padding: 16,
+      padding: 12,
       backgroundColor: colors.headerBackground,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
@@ -505,6 +515,7 @@ const styles = (colors: any) =>
       fontSize: 18,
       fontWeight: "bold",
       color: colors.text,
+      flex: 1,
     },
     closeButton: {
       padding: 4,

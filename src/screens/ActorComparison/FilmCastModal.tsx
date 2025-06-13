@@ -26,7 +26,7 @@ interface FilmCastModalProps {
   filmId: number;
   filmTitle?: string;
   filmPosterPath?: string;
-  mediaType?: "movie" | "tv";  // Add media type to handle both movies and TV shows
+  mediaType?: "movie" | "tv"; // Add media type to handle both movies and TV shows
   onSelectActor1: (actor: Actor) => void;
   onSelectActor2: (actor: Actor) => void;
   // New props for film selection
@@ -82,17 +82,18 @@ const FilmCastModal = ({
           response = await tmdbApi.getTVShowAggregateCredits(filmId);
           // Transform TV show aggregate credits to match CastMember format
           if (response && response.cast && response.cast.length > 0) {
-            const transformedCast = response.cast.map(actor => ({
+            const transformedCast = response.cast.map((actor) => ({
               id: actor.id,
               name: actor.name,
               // Use the first character role or combine them
-              character: actor.roles && actor.roles.length > 0
-                ? actor.roles.map(role => role.character).join(', ')
-                : "Unknown role",
+              character:
+                actor.roles && actor.roles.length > 0
+                  ? actor.roles.map((role) => role.character).join(", ")
+                  : "Unknown role",
               profile_path: actor.profile_path,
               order: actor.order || 0,
               gender: actor.gender,
-              popularity: actor.popularity
+              popularity: actor.popularity,
             }));
             setCast(transformedCast);
           }
@@ -104,10 +105,15 @@ const FilmCastModal = ({
         }
 
         if (!response || !response.cast || response.cast.length === 0) {
-          setError(`No cast found for this ${mediaType === "tv" ? "TV show" : "film"}`);
+          setError(
+            `No cast found for this ${mediaType === "tv" ? "TV show" : "film"}`
+          );
         }
       } catch (err) {
-        console.error(`Failed to fetch ${mediaType === "tv" ? "TV show" : "film"}'s cast:`, err);
+        console.error(
+          `Failed to fetch ${mediaType === "tv" ? "TV show" : "film"}'s cast:`,
+          err
+        );
         setError("Failed to load cast information");
       } finally {
         setLoading(false);
@@ -149,7 +155,7 @@ const FilmCastModal = ({
   // New function to handle film selection
   const handleSelectFilm = (option: "film1" | "film2") => {
     if (!onSelectFilm1 && !onSelectFilm2) return;
-    
+
     const filmItem: MediaItem = {
       id: filmId,
       title: filmTitle,
@@ -244,23 +250,33 @@ const FilmCastModal = ({
         <View style={styles(colors).modalContent}>
           {/* Modal header */}
           <View style={styles(colors).modalHeader}>
-            <Text style={styles(colors).modalTitle}>Cast of {filmTitle}</Text>
-            
+            <View style={styles(colors).titleContainer}>
+              <Text
+                style={styles(colors).modalTitle}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+              >
+                {filmTitle}
+              </Text>
+            </View>
+
             {/* Add header actions with Select Film button */}
             <View style={styles(colors).headerActions}>
               {canSelectFilm && (
                 <TouchableOpacity
                   style={styles(colors).selectFilmButton}
                   onPress={openFilmOptions}
+                  accessibilityLabel="Select film"
                 >
                   <Ionicons name="film" size={20} color={colors.primary} />
-                  <Text style={styles(colors).selectFilmText}>Select Film</Text>
+                  <Text style={styles(colors).selectFilmText}>Select</Text>
                 </TouchableOpacity>
               )}
-              
+
               <TouchableOpacity
                 style={styles(colors).closeButton}
                 onPress={handleCloseModal}
+                accessibilityLabel="Close modal"
               >
                 <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
@@ -360,9 +376,11 @@ const FilmCastModal = ({
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsFilm1 ? "Already selected as Film 1" : "Film 1"}
-                    {selectedFilm1 && !isSelectedAsFilm1 
-                      ? ` (replaces ${selectedFilm1.title})` 
+                    {isSelectedAsFilm1
+                      ? "Already selected as Film 1"
+                      : "Film 1"}
+                    {selectedFilm1 && !isSelectedAsFilm1
+                      ? ` (replaces ${selectedFilm1.title})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
@@ -377,9 +395,11 @@ const FilmCastModal = ({
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsFilm2 ? "Already selected as Film 2" : "Film 2"}
-                    {selectedFilm2 && !isSelectedAsFilm2 
-                      ? ` (replaces ${selectedFilm2.title})` 
+                    {isSelectedAsFilm2
+                      ? "Already selected as Film 2"
+                      : "Film 2"}
+                    {selectedFilm2 && !isSelectedAsFilm2
+                      ? ` (replaces ${selectedFilm2.title})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
@@ -408,6 +428,50 @@ const styles = (colors: any) =>
       alignItems: "center",
       paddingTop: 50,
     },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 10,
+      backgroundColor: colors.headerBackground,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      minHeight: 60, // Set minimum height for the header
+    },
+    titleContainer: {
+      flex: 1,
+      marginRight: 8,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      flexWrap: "wrap", // Allow text to wrap
+    },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexShrink: 0, // Prevent the actions from shrinking
+    },
+    closeButton: {
+      padding: 8, // Increased touch target
+      marginLeft: 8, // Add spacing between buttons
+    },
+    selectFilmButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.primary,
+    },
+    selectFilmText: {
+      color: colors.primary,
+      fontSize: 12,
+      marginLeft: 4,
+      fontWeight: "500",
+    },
     modalContent: {
       width: "90%",
       height: "80%",
@@ -419,23 +483,6 @@ const styles = (colors: any) =>
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.25,
       shadowRadius: 3.84,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: 16,
-      backgroundColor: colors.headerBackground,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: colors.text,
-    },
-    closeButton: {
-      padding: 4,
     },
     castContainer: {
       flex: 1,
@@ -567,28 +614,9 @@ const styles = (colors: any) =>
       color: colors.primary,
       fontWeight: "600",
     },
-    headerActions: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    selectFilmButton: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginRight: 12,
-      paddingVertical: 4,
-      paddingHorizontal: 8,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: colors.primary,
-    },
-    selectFilmText: {
-      color: colors.primary,
-      fontSize: 12,
-      marginLeft: 4,
-      fontWeight: "500",
-    },
+
     selectedOptionButton: {
-      backgroundColor: colors.primary + '20',  // Semi-transparent version of primary color
+      backgroundColor: colors.primary + "20", // Semi-transparent version of primary color
       borderColor: colors.primary,
     },
   });
