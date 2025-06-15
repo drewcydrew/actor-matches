@@ -101,7 +101,12 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
           ) : (
             castMembers.map((item) => (
               <TouchableOpacity
-                key={item.id.toString()}
+                // Create a unique key using both id and role_type
+                key={
+                  item.role_type === "crew"
+                    ? `${item.id}-${item.role_type}-${item.department}-${item.character}`
+                    : `${item.id}-${item.role_type || "cast"}`
+                }
                 style={styles(colors).actorItem}
                 onPress={() =>
                   onActorSelect && selectedMediaItem1 && onActorSelect(item)
@@ -125,8 +130,17 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                   <View style={styles(colors).actorInfo}>
                     <Text style={styles(colors).actorName}>{item.name}</Text>
 
-                    {/* Show different character info based on mode */}
-                    {displayMode === "comparison" ? (
+                    {/* Check if it's a crew member and display appropriate information */}
+                    {item.role_type === "crew" ? (
+                      <View>
+                        <Text style={styles(colors).department}>
+                          {item.department || "Crew"}
+                        </Text>
+                        <Text style={styles(colors).character}>
+                          {item.character || "Unknown role"}
+                        </Text>
+                      </View>
+                    ) : displayMode === "comparison" ? (
                       <>
                         <Text style={styles(colors).character}>
                           {`in "${selectedMediaItem1?.title}": ${
@@ -167,6 +181,12 @@ const styles = (colors: any) =>
       padding: 8,
       width: "100%",
       backgroundColor: colors.background,
+    },
+    department: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: colors.primary,
+      marginBottom: 2,
     },
     headerContainer: {
       flexDirection: "row",

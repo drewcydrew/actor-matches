@@ -112,12 +112,24 @@ const DEFAULT_ACTOR_2: SelectedActor = {
 export interface CommonCastMember extends CastMember {
   characterInMedia1?: string;
   characterInMedia2?: string;
+  role_type?: "cast" | "crew"; // Optional role type for crew members
+  department?: string; // For crew members, to specify their department
 }
 
 // Extended MediaItem interface to include character information for actors
 export interface CommonMediaItem extends MediaItem {
   characterForActor1?: string;
   characterForActor2?: string;
+
+  roleType?: "cast" | "crew";
+  role1Type?: "cast" | "crew";
+  role2Type?: "cast" | "crew";
+  department?: string;
+  department1?: string;
+  department2?: string;
+  job?: string;
+  job1?: string;
+  job2?: string;
 }
 
 // Actor interface for selection
@@ -134,6 +146,7 @@ export interface Actor {
   known_for_department?: string;
   popularity?: number;
   known_for?: Array<{ title?: string; name?: string }>;
+  role_type?: "cast" | "crew"; // Optional role type for actors
 }
 
 // Define the shape of our context state
@@ -421,35 +434,60 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         const isTV = activeMedia.media_type === "tv";
 
         let castData;
-        
+
         // Fetch the appropriate cast data
         if (isTV) {
           // Use aggregate credits for TV shows to get a more comprehensive cast list
-          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(activeMedia.id);
-          
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(
+            activeMedia.id
+          );
+
           // Transform aggregate credits format to match our CastMember interface
           castData = {
-            cast: aggregateCredits.cast.map(actor => ({
+            cast: aggregateCredits.cast.map((actor) => ({
               id: actor.id,
               name: actor.name,
               // Use the first character role or combine multiple roles
-              character: actor.roles && actor.roles.length > 0 
-                ? actor.roles.map(role => role.character).join(', ')
-                : "Unknown role",
+              character:
+                actor.roles && actor.roles.length > 0
+                  ? actor.roles.map((role) => role.character).join(", ")
+                  : "Unknown role",
               profile_path: actor.profile_path,
               order: actor.order,
               gender: actor.gender,
               popularity: actor.popularity,
-              total_episode_count: actor.total_episode_count
-            }))
+              total_episode_count: actor.total_episode_count,
+            })),
           };
         } else {
           castData = await tmdbApi.getMovieCast(activeMedia.id);
         }
 
         if (castData.cast && castData.cast.length > 0) {
+          // Combine cast and crew into a single array
+          const allCastAndCrew = [
+            ...castData.cast.map((member) => ({
+              ...member,
+              role_type: "cast" as const, // Explicitly set role_type for cast members
+            })),
+            ...(castData.crew
+              ? castData.crew.map((member) => ({
+                  id: member.id,
+                  name: member.name,
+                  character: member.job, // Use job as the "character" for crew
+                  profile_path: member.profile_path,
+                  department: member.department,
+                  role_type: "crew" as const,
+                  popularity: member.popularity,
+                  order:
+                    1000 +
+                    (member.popularity ? Math.floor(member.popularity) : 0), // Add order property
+                }))
+              : []),
+          ];
+
           setCastMembers(
-            castData.cast.sort(
+            allCastAndCrew.sort(
               (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
             )
           );
@@ -484,38 +522,44 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         let cast1Data, cast2Data;
 
         if (isMedia1TV) {
-          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(selectedMediaItem1.id);
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(
+            selectedMediaItem1.id
+          );
           cast1Data = {
-            cast: aggregateCredits.cast.map(actor => ({
+            cast: aggregateCredits.cast.map((actor) => ({
               id: actor.id,
               name: actor.name,
-              character: actor.roles && actor.roles.length > 0 
-                ? actor.roles.map(role => role.character).join(', ')
-                : "Unknown role",
+              character:
+                actor.roles && actor.roles.length > 0
+                  ? actor.roles.map((role) => role.character).join(", ")
+                  : "Unknown role",
               profile_path: actor.profile_path,
               order: actor.order,
               gender: actor.gender,
-              popularity: actor.popularity
-            }))
+              popularity: actor.popularity,
+            })),
           };
         } else {
           cast1Data = await tmdbApi.getMovieCast(selectedMediaItem1.id);
         }
 
         if (isMedia2TV) {
-          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(selectedMediaItem2.id);
+          const aggregateCredits = await tmdbApi.getTVShowAggregateCredits(
+            selectedMediaItem2.id
+          );
           cast2Data = {
-            cast: aggregateCredits.cast.map(actor => ({
+            cast: aggregateCredits.cast.map((actor) => ({
               id: actor.id,
               name: actor.name,
-              character: actor.roles && actor.roles.length > 0 
-                ? actor.roles.map(role => role.character).join(', ')
-                : "Unknown role",
+              character:
+                actor.roles && actor.roles.length > 0
+                  ? actor.roles.map((role) => role.character).join(", ")
+                  : "Unknown role",
               profile_path: actor.profile_path,
               order: actor.order,
               gender: actor.gender,
-              popularity: actor.popularity
-            }))
+              popularity: actor.popularity,
+            })),
           };
         } else {
           cast2Data = await tmdbApi.getMovieCast(selectedMediaItem2.id);
@@ -527,32 +571,71 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           cast1Data.cast.length > 0 &&
           cast2Data.cast.length > 0
         ) {
-          // Create map of actor IDs from first cast for fast lookup
+          // Create maps for both cast and crew from the first media item
           const cast1Map = new Map();
-          cast1Data.cast.forEach((actor) => {
-            cast1Map.set(actor.id, actor);
+          cast1Data.cast.forEach((person) => {
+            cast1Map.set(person.id, { ...person, role_type: "cast" as const });
           });
 
-          // Find actors in both casts
-          const matchingActors = cast2Data.cast
-            .filter((actor) => cast1Map.has(actor.id))
-            .map((actor) => {
-              const actorInMedia1 = cast1Map.get(actor.id);
+          // Add crew members if available
+          if (cast1Data.crew) {
+            cast1Data.crew.forEach((person) => {
+              // Use compound key to handle cases where someone is both cast and crew
+              cast1Map.set(`crew-${person.id}-${person.job}`, {
+                ...person,
+                role_type: "crew" as const,
+              });
+            });
+          }
+
+          // Find matching people in the second media item
+          const matchingCast = cast2Data.cast
+            .filter((person) => cast1Map.has(person.id))
+            .map((person) => {
+              const personInMedia1 = cast1Map.get(person.id);
               return {
-                ...actor,
-                characterInMedia1: actorInMedia1.character || "Unknown role",
-                characterInMedia2: actor.character || "Unknown role",
+                ...person,
+                role_type: "cast" as const,
+                characterInMedia1: personInMedia1.character || "Unknown role",
+                characterInMedia2: person.character || "Unknown role",
               };
             });
 
-          if (matchingActors.length > 0) {
+          // Find matching crew if available
+          const matchingCrew = cast2Data.crew
+            ? cast2Data.crew
+                .filter((person) =>
+                  cast1Map.has(`crew-${person.id}-${person.job}`)
+                )
+                .map((person) => {
+                  const personInMedia1 = cast1Map.get(
+                    `crew-${person.id}-${person.job}`
+                  );
+                  return {
+                    ...person,
+                    character: person.job, // Add this line to set character to job
+                    role_type: "crew" as const,
+                    department: person.department || "Other",
+                    order:
+                      1000 +
+                      (person.popularity ? Math.floor(person.popularity) : 0),
+                    characterInMedia1: personInMedia1.job || "Unknown role",
+                    characterInMedia2: person.job || "Unknown role",
+                  };
+                })
+            : [];
+
+          // Combine matching cast and crew and sort by popularity
+          const allMatchingPeople = [...matchingCast, ...matchingCrew];
+
+          if (allMatchingPeople.length > 0) {
             setCastMembers(
-              matchingActors.sort(
+              allMatchingPeople.sort(
                 (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0)
               )
             );
           } else {
-            setCastError("No common cast members found");
+            setCastError("No common cast or crew members found");
           }
         } else {
           setCastError("Cast information not available for one or both titles");
@@ -567,6 +650,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   };
 
   // Function to get actor filmography (both movies and TV shows)
+  // Function to get actor filmography (both movies and TV shows, both cast and crew roles)
   const getActorFilmography = async (
     actor1Id?: number,
     actor2Id?: number,
@@ -598,8 +682,8 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         );
         const tvCredits = await tmdbApi.getActorTVCredits(selectedActorId);
 
-        // Process movie credits
-        const movieItems: CommonMediaItem[] =
+        // Process movie CAST credits
+        const movieCastItems: CommonMediaItem[] =
           movieCredits.cast && movieCredits.cast.length > 0
             ? movieCredits.cast
                 .filter((film) => film.release_date)
@@ -607,11 +691,28 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
                   ...convertToMediaItem(film, "movie"),
                   characterForActor1: actor1Id ? film.character : undefined,
                   characterForActor2: actor2Id ? film.character : undefined,
+                  roleType: "cast" as const,
                 }))
             : [];
 
-        // Process TV credits
-        const tvItems: CommonMediaItem[] =
+        // Process movie CREW credits
+        const movieCrewItems: CommonMediaItem[] =
+          movieCredits.crew && movieCredits.crew.length > 0
+            ? movieCredits.crew
+                .filter((film) => film.release_date)
+                .map((film) => ({
+                  ...convertToMediaItem(film, "movie"),
+                  character: film.job, // Use job as character
+                  characterForActor1: actor1Id ? film.job : undefined,
+                  characterForActor2: actor2Id ? film.job : undefined,
+                  roleType: "crew" as const,
+                  department: film.department,
+                  job: film.job,
+                }))
+            : [];
+
+        // Process TV CAST credits
+        const tvCastItems: CommonMediaItem[] =
           tvCredits.cast && tvCredits.cast.length > 0
             ? tvCredits.cast
                 .filter((show) => show.first_air_date)
@@ -619,13 +720,33 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
                   ...convertToMediaItem(show, "tv"),
                   characterForActor1: actor1Id ? show.character : undefined,
                   characterForActor2: actor2Id ? show.character : undefined,
+                  roleType: "cast" as const,
                 }))
             : [];
 
-        // Combine and sort by popularity
-        const combinedMedia = [...movieItems, ...tvItems].sort(
-          (a, b) => b.popularity - a.popularity
-        );
+        // Process TV CREW credits
+        const tvCrewItems: CommonMediaItem[] =
+          tvCredits.crew && tvCredits.crew.length > 0
+            ? tvCredits.crew
+                //.filter((show) => show.first_air_date)
+                .map((show) => ({
+                  ...convertToMediaItem(show, "tv"),
+                  character: show.job, // Use job as character
+                  characterForActor1: actor1Id ? show.job : undefined,
+                  characterForActor2: actor2Id ? show.job : undefined,
+                  roleType: "crew" as const,
+                  department: show.department,
+                  job: show.job,
+                }))
+            : [];
+
+        // Combine all types of credits and sort by popularity
+        const combinedMedia = [
+          ...movieCastItems,
+          ...movieCrewItems,
+          ...tvCastItems,
+          ...tvCrewItems,
+        ].sort((a, b) => b.popularity - a.popularity);
 
         if (combinedMedia.length > 0) {
           setCommonMedia(combinedMedia);
@@ -633,7 +754,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           setMediaError(`No media found for ${selectedActorName}`);
         }
       } catch (err) {
-        setMediaError("Error fetching actor's filmography");
+        setMediaError("Error fetching person's filmography");
         console.error(err);
       } finally {
         setMediaLoading(false);
@@ -655,72 +776,227 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         const actor2TVCredits = await tmdbApi.getActorTVCredits(actor2Id);
 
         // Process all credits to MediaItem format
-        const actor1MediaItems: Map<number, CommonMediaItem> = new Map();
+        const actor1MediaItems: Map<string, CommonMediaItem> = new Map();
 
-        // Add movies from actor 1
+        // Add CAST movies from actor 1
         if (actor1MovieCredits.cast && actor1MovieCredits.cast.length > 0) {
           actor1MovieCredits.cast.forEach((film) => {
             if (film.release_date) {
-              actor1MediaItems.set(film.id, {
+              actor1MediaItems.set(`movie-${film.id}-cast`, {
                 ...convertToMediaItem(film, "movie"),
                 characterForActor1: film.character || "Unknown role",
+                role1Type: "cast" as const,
               });
             }
           });
         }
 
-        // Add TV shows from actor 1
+        // Add CREW movies from actor 1
+        if (actor1MovieCredits.crew && actor1MovieCredits.crew.length > 0) {
+          actor1MovieCredits.crew.forEach((film) => {
+            if (film.release_date) {
+              // Create a unique key that includes the department and job
+              const key = `movie-${film.id}-crew-${film.department}-${film.job}`;
+              actor1MediaItems.set(key, {
+                ...convertToMediaItem(film, "movie"),
+                characterForActor1: film.job || "Unknown role",
+                role1Type: "crew" as const,
+                department1: film.department,
+                job1: film.job,
+              });
+            }
+          });
+        }
+
+        // Add CAST TV shows from actor 1
         if (actor1TVCredits.cast && actor1TVCredits.cast.length > 0) {
           actor1TVCredits.cast.forEach((show) => {
             if (show.first_air_date) {
-              actor1MediaItems.set(show.id, {
+              actor1MediaItems.set(`tv-${show.id}-cast`, {
                 ...convertToMediaItem(show, "tv"),
                 characterForActor1: show.character || "Unknown role",
+                role1Type: "cast" as const,
               });
             }
           });
         }
 
-        // Find matching movies from actor 2
-        const matchingMovies: CommonMediaItem[] = [];
+        // Add CREW TV shows from actor 1
+        if (actor1TVCredits.crew && actor1TVCredits.crew.length > 0) {
+          actor1TVCredits.crew.forEach((show) => {
+            if (true) {
+              // Create a unique key that includes the department and job
+              const key = `tv-${show.id}-crew-${show.department}-${show.job}`;
+              actor1MediaItems.set(key, {
+                ...convertToMediaItem(show, "tv"),
+                characterForActor1: show.job || "Unknown role",
+                role1Type: "crew" as const,
+                department1: show.department,
+                job1: show.job,
+              });
+            }
+          });
+        }
+
+        // Find matching movies (CAST) from actor 2
+        const matchingMoviesCast: CommonMediaItem[] = [];
         if (actor2MovieCredits.cast && actor2MovieCredits.cast.length > 0) {
           actor2MovieCredits.cast.forEach((film) => {
-            if (film.release_date && actor1MediaItems.has(film.id)) {
-              const mediaItem = actor1MediaItems.get(film.id)!;
-              matchingMovies.push({
+            // Check both cast and crew keys
+            const castKey = `movie-${film.id}-cast`;
+
+            if (film.release_date && actor1MediaItems.has(castKey)) {
+              const mediaItem = actor1MediaItems.get(castKey)!;
+              matchingMoviesCast.push({
                 ...mediaItem,
                 characterForActor2: film.character || "Unknown role",
+                role2Type: "cast" as const,
+              });
+            }
+
+            // Also check if actor 1 was crew on this same movie
+            // Loop through possible crew combinations
+            if (actor1MovieCredits.crew) {
+              actor1MovieCredits.crew.forEach((crewRole) => {
+                if (crewRole.id === film.id) {
+                  const crewKey = `movie-${film.id}-crew-${crewRole.department}-${crewRole.job}`;
+                  if (actor1MediaItems.has(crewKey)) {
+                    const mediaItem = actor1MediaItems.get(crewKey)!;
+                    matchingMoviesCast.push({
+                      ...mediaItem,
+                      characterForActor2: film.character || "Unknown role",
+                      role2Type: "cast" as const,
+                    });
+                  }
+                }
               });
             }
           });
         }
 
-        // Find matching TV shows from actor 2
-        const matchingTVShows: CommonMediaItem[] = [];
+        // Find matching movies (CREW) from actor 2
+        const matchingMoviesCrew: CommonMediaItem[] = [];
+        if (actor2MovieCredits.crew && actor2MovieCredits.crew.length > 0) {
+          actor2MovieCredits.crew.forEach((film) => {
+            // Check if actor 1 was cast in this movie
+            const castKey = `movie-${film.id}-cast`;
+
+            if (film.release_date && actor1MediaItems.has(castKey)) {
+              const mediaItem = actor1MediaItems.get(castKey)!;
+              matchingMoviesCrew.push({
+                ...mediaItem,
+                characterForActor2: film.job || "Unknown role",
+                role2Type: "crew" as const,
+                department2: film.department,
+                job2: film.job,
+              });
+            }
+
+            // Check if actor 1 was also crew on this movie (might be different departments)
+            // We'll create a base key without the department/job
+            const baseKey = `movie-${film.id}-crew`;
+
+            // Find any keys that start with this base key
+            for (const [key, mediaItem] of actor1MediaItems.entries()) {
+              if (key.startsWith(baseKey)) {
+                matchingMoviesCrew.push({
+                  ...mediaItem,
+                  characterForActor2: film.job || "Unknown role",
+                  role2Type: "crew" as const,
+                  department2: film.department,
+                  job2: film.job,
+                });
+                // We found a match, no need to check other keys
+                break;
+              }
+            }
+          });
+        }
+
+        // Apply similar logic for TV shows
+        const matchingTVShowsCast: CommonMediaItem[] = [];
         if (actor2TVCredits.cast && actor2TVCredits.cast.length > 0) {
           actor2TVCredits.cast.forEach((show) => {
-            if (show.first_air_date && actor1MediaItems.has(show.id)) {
-              const mediaItem = actor1MediaItems.get(show.id)!;
-              matchingTVShows.push({
+            const castKey = `tv-${show.id}-cast`;
+
+            if (show.first_air_date && actor1MediaItems.has(castKey)) {
+              const mediaItem = actor1MediaItems.get(castKey)!;
+              matchingTVShowsCast.push({
                 ...mediaItem,
                 characterForActor2: show.character || "Unknown role",
+                role2Type: "cast" as const,
+              });
+            }
+
+            // Also check if actor 1 was crew on this same TV show
+            if (actor1TVCredits.crew) {
+              actor1TVCredits.crew.forEach((crewRole) => {
+                if (crewRole.id === show.id) {
+                  const crewKey = `tv-${show.id}-crew-${crewRole.department}-${crewRole.job}`;
+                  if (actor1MediaItems.has(crewKey)) {
+                    const mediaItem = actor1MediaItems.get(crewKey)!;
+                    matchingTVShowsCast.push({
+                      ...mediaItem,
+                      characterForActor2: show.character || "Unknown role",
+                      role2Type: "cast" as const,
+                    });
+                  }
+                }
               });
             }
           });
         }
 
-        // Combine all matching media and sort by popularity
-        const allMatchingMedia = [...matchingMovies, ...matchingTVShows];
+        const matchingTVShowsCrew: CommonMediaItem[] = [];
+        if (actor2TVCredits.crew && actor2TVCredits.crew.length > 0) {
+          actor2TVCredits.crew.forEach((show) => {
+            const castKey = `tv-${show.id}-cast`;
 
-        // Deduplicate based on id and media_type
-        const uniqueMedia = Array.from(
-          new Map(
-            allMatchingMedia.map((item) => [
-              `${item.media_type}-${item.id}`,
-              item,
-            ])
-          ).values()
-        );
+            if (true && actor1MediaItems.has(castKey)) {
+              const mediaItem = actor1MediaItems.get(castKey)!;
+              matchingTVShowsCrew.push({
+                ...mediaItem,
+                characterForActor2: show.job || "Unknown role",
+                role2Type: "crew" as const,
+                department2: show.department,
+                job2: show.job,
+              });
+            }
+
+            // Check if actor 1 was also crew on this TV show
+            const baseKey = `tv-${show.id}-crew`;
+
+            for (const [key, mediaItem] of actor1MediaItems.entries()) {
+              if (key.startsWith(baseKey)) {
+                matchingTVShowsCrew.push({
+                  ...mediaItem,
+                  characterForActor2: show.job || "Unknown role",
+                  role2Type: "crew" as const,
+                  department2: show.department,
+                  job2: show.job,
+                });
+                break;
+              }
+            }
+          });
+        }
+
+        // Combine all matching media
+        const allMatchingMedia = [
+          ...matchingMoviesCast,
+          ...matchingMoviesCrew,
+          ...matchingTVShowsCast,
+          ...matchingTVShowsCrew,
+        ];
+
+        // Create a more robust deduplication approach that considers roles
+        const seen = new Set();
+        const uniqueMedia = allMatchingMedia.filter((item) => {
+          const key = `${item.media_type}-${item.id}-${item.role1Type}-${item.role2Type}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
 
         // Sort by popularity
         const sortedMedia = uniqueMedia.sort(
@@ -731,7 +1007,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           setCommonMedia(sortedMedia);
         } else {
           setMediaError(
-            `${actor1Name} and ${actor2Name} haven't appeared in any movies or TV shows together`
+            `${actor1Name} and ${actor2Name} haven't worked together in any movies or TV shows`
           );
         }
       } catch (err) {
@@ -818,15 +1094,9 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
       if (personData.results && personData.results.length > 0) {
         // Filter to acting roles and sort by popularity if available
-        const actorResults = personData.results
-          .filter(
-            (person: Actor) =>
-              !person.known_for_department ||
-              person.known_for_department === "Acting"
-          )
-          .sort(
-            (a: Actor, b: Actor) => (b.popularity || 0) - (a.popularity || 0)
-          );
+        const actorResults = personData.results.sort(
+          (a: Actor, b: Actor) => (b.popularity || 0) - (a.popularity || 0)
+        );
 
         if (actorResults.length > 0) {
           return { results: actorResults, error: null };

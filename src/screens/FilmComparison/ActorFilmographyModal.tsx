@@ -31,7 +31,11 @@ interface ActorFilmographyModalProps {
 }
 
 type MediaType = "movies" | "tv" | "all";
-type MediaItem = (Film | TVShow) & { media_type: "movie" | "tv" };
+type MediaItem = (Film | TVShow) & {
+  media_type: "movie" | "tv";
+  role_type?: "cast" | "crew";
+  department?: string;
+};
 
 const ActorFilmographyModal = ({
   actorId,
@@ -78,20 +82,60 @@ const ActorFilmographyModal = ({
       // Fetch movie credits if needed
       if (mediaType === "movies" || mediaType === "all") {
         const movieResponse = await tmdbApi.getActorMovieCredits(actorId);
+
+        // Process cast credits
         if (movieResponse.cast && movieResponse.cast.length > 0) {
           movieCredits = movieResponse.cast
             .filter((item) => item.release_date)
-            .map((item) => ({ ...item, media_type: "movie" }));
+            .map((item) => ({
+              ...item,
+              media_type: "movie" as const, // Use "as const" to preserve the literal type
+              role_type: "cast" as const,
+            }));
+        }
+
+        // Process crew credits
+        if (movieResponse.crew && movieResponse.crew.length > 0) {
+          const crewCredits = movieResponse.crew
+            .filter((item) => item.release_date)
+            .map((item) => ({
+              ...item,
+              media_type: "movie" as const, // Use "as const" to preserve the literal type
+              role_type: "crew" as const,
+              character: item.job,
+              department: item.department,
+            }));
+          movieCredits = [...movieCredits, ...crewCredits];
         }
       }
 
       // Fetch TV credits if needed
       if (mediaType === "tv" || mediaType === "all") {
         const tvResponse = await tmdbApi.getActorTVCredits(actorId);
+
+        // Process cast credits
         if (tvResponse.cast && tvResponse.cast.length > 0) {
           tvCredits = tvResponse.cast
             .filter((item) => item.first_air_date)
-            .map((item) => ({ ...item, media_type: "tv" }));
+            .map((item) => ({
+              ...item,
+              media_type: "tv" as const, // Use "as const" for literal type
+              role_type: "cast" as const,
+            }));
+        }
+
+        // Process crew credits
+        if (tvResponse.crew && tvResponse.crew.length > 0) {
+          const crewCredits = tvResponse.crew
+            .filter((item: any) => item.first_air_date) // Use type assertion
+            .map((item: any) => ({
+              ...item,
+              media_type: "tv" as const,
+              role_type: "crew" as const,
+              character: item.job,
+              department: item.department,
+            }));
+          tvCredits = [...tvCredits, ...crewCredits];
         }
       }
 
@@ -104,14 +148,14 @@ const ActorFilmographyModal = ({
         setMediaItems(combined);
       } else {
         setError(
-          `No ${mediaType === "all" ? "media" : mediaType} found for this actor`
+          `No ${
+            mediaType === "all" ? "media" : mediaType
+          } found for this person`
         );
       }
     } catch (err) {
-      console.error("Failed to fetch actor's credits:", err);
-      setError(
-        `Failed to load actor's ${mediaType === "all" ? "credits" : mediaType}`
-      );
+      console.error("Failed to fetch person's credits:", err);
+      setError(`Failed to load ${mediaType === "all" ? "credits" : mediaType}`);
     } finally {
       setLoading(false);
     }
@@ -191,6 +235,9 @@ const ActorFilmographyModal = ({
       ? new Date(releaseDate).getFullYear().toString()
       : "Unknown";
 
+    // Check if it's a crew credit
+    const isCrew = (item as any).role_type === "crew";
+
     return (
       <TouchableOpacity
         style={[
@@ -218,10 +265,22 @@ const ActorFilmographyModal = ({
               {isMovie ? "Movie" : "TV"}
             </Text>
           </View>
-          {item.character && (
+
+          {/* Show different text based on whether it's cast or crew */}
+          {isCrew ? (
+            <View>
+              <Text style={styles(colors).department}>
+                {(item as any).department || "Crew"}
+              </Text>
+              <Text style={styles(colors).character}>
+                {item.character || "Unknown role"}
+              </Text>
+            </View>
+          ) : item.character ? (
             <Text style={styles(colors).character}>as {item.character}</Text>
-          )}
-          {!isMovie && (item as TVShow).episode_count && (
+          ) : null}
+
+          {!isMovie && (item as TVShow).episode_count && !isCrew && (
             <Text style={styles(colors).episodeCount}>
               {(item as TVShow).episode_count} episode
               {(item as TVShow).episode_count !== 1 ? "s" : ""}
@@ -229,7 +288,7 @@ const ActorFilmographyModal = ({
           )}
         </View>
 
-        {/* Indicate if this item is already selected */}
+        {/* Indicator labels remain the same */}
         {selectedFilm1?.id === item.id && (
           <View style={styles(colors).filmIndicator}>
             <Text style={styles(colors).indicatorText}>Film 1</Text>
@@ -355,8 +414,8 @@ const ActorFilmographyModal = ({
                 renderItem={renderMediaItem}
                 keyExtractor={(item, index) =>
                   `${item.media_type}-${item.id}-${
-                    item.character?.substring(0, 10) || ""
-                  }-${index}`
+                    (item as any).role_type || "cast"
+                  }-${item.character?.substring(0, 10) || ""}-${index}`
                 }
                 ListEmptyComponent={
                   <Text style={styles(colors).emptyText}>No credits found</Text>
@@ -489,6 +548,12 @@ const styles = (colors: any) =>
       justifyContent: "center",
       alignItems: "center",
       paddingTop: 50,
+    },
+    department: {
+      fontSize: 13,
+      fontWeight: "500",
+      color: colors.primary,
+      marginBottom: 2,
     },
     modalContent: {
       width: "90%",

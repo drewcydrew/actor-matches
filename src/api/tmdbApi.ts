@@ -11,6 +11,8 @@ export interface Film {
   overview?: string;
   poster_path?: string;
   vote_average?: number;
+  job?: string;           // Add this line
+  department?: string;    // Add this line
 }
 
 export interface TVShow {
@@ -23,6 +25,8 @@ export interface TVShow {
   poster_path?: string;
   vote_average?: number;
   episode_count?: number; // Specific to TV shows
+  job?: string;           // Add this line
+  department?: string;    // Add this line
 }
 
 export interface TVShowCredits {
@@ -57,10 +61,12 @@ export interface TVShowSearchResult {
 
 export interface ActorCredits {
   cast: Film[];
+  crew: Film[];
 }
 
 export interface ActorTVCredits {
   cast: TVShow[];
+  crew: Film[];
 }
 
 export interface CastMember {
@@ -73,9 +79,20 @@ export interface CastMember {
   popularity?: number;
 }
 
+export interface CrewMember {
+  id: number;
+  name: string;
+  job: string;
+  department: string;
+  profile_path?: string;
+  gender?: number;
+  popularity?: number;
+}
+
 export interface MovieCredits {
   id: number;
   cast: CastMember[];
+  crew: CrewMember[];
 }
 
 // New interface for aggregate TV credits
