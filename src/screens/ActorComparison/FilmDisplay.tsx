@@ -125,6 +125,32 @@ const FilmDisplay = ({
     );
   };
 
+  // Add a new function to get role type badge
+  const getRoleTypeBadge = (roleType?: string) => {
+    const isCrew = roleType === "crew";
+
+    return (
+      <View
+        style={[
+          styles(colors).roleTypeBadge,
+          {
+            backgroundColor: isCrew ? colors.secondary : colors.primary,
+            marginLeft: 8,
+          },
+        ]}
+      >
+        <Ionicons
+          name={isCrew ? "construct-outline" : "people-outline"}
+          size={12}
+          color="#fff"
+        />
+        <Text style={styles(colors).mediaTypeBadgeText}>
+          {isCrew ? "CREW" : "CAST"}
+        </Text>
+      </View>
+    );
+  };
+
   // Get counts for filter badges
   const getMediaCounts = () => {
     if (!commonMedia || commonMedia.length === 0)
@@ -293,6 +319,7 @@ const FilmDisplay = ({
                           {getYear(media1)}
                         </Text>
                         {getMediaTypeBadge(media1.media_type)}
+                        {getRoleTypeBadge(media1.role_type)}
                       </View>
 
                       {/* Show character info for both actors when in common media mode */}
@@ -485,6 +512,14 @@ const styles = (colors: any) =>
       marginTop: 20,
       color: colors.textSecondary,
       fontSize: 14,
+    },
+    // Add roleTypeBadge style (matching mediaTypeBadge)
+    roleTypeBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
     },
   });
 

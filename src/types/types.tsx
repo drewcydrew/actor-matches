@@ -10,7 +10,7 @@ export interface Person {
 
   // Cast-specific properties (optional for crew)
   character?: string;
-  order?: number;
+  //order?: number;
 
   // Crew-specific properties (optional for cast)
   job?: string;
@@ -28,6 +28,7 @@ export interface BaseMediaItem {
   media_type: "movie" | "tv";
   job?: string;
   department?: string;
+  role_type?: "cast" | "crew"; // Add this property to support the crew/cast badges
 }
 
 export interface Film extends BaseMediaItem {

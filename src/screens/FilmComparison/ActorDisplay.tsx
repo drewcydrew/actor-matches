@@ -242,7 +242,6 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
 
               return (
                 <TouchableOpacity
-                  // Create a unique key using both id and role_type
                   key={`${person1.id}-${index}`}
                   style={[
                     styles(colors).actorItem,
@@ -250,11 +249,18 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                   ]}
                   onPress={() =>
                     onActorSelect &&
-                    selectedMediaItem1 &&
+                    (selectedMediaItem1 || selectedMediaItem2) &&
                     onActorSelect(person1)
                   }
-                  //disabled={!onActorSelect || !selectedMediaItem1}
-                  activeOpacity={onActorSelect && selectedMediaItem1 ? 0.7 : 1}
+                  disabled={
+                    !onActorSelect ||
+                    (!selectedMediaItem1 && !selectedMediaItem2)
+                  }
+                  activeOpacity={
+                    onActorSelect && (selectedMediaItem1 || selectedMediaItem2)
+                      ? 0.7
+                      : 1
+                  }
                 >
                   <View style={styles(colors).actorItemContent}>
                     {person1.profile_path ? (
@@ -279,14 +285,32 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
 
                       {/* Check if it's a crew member and display appropriate information */}
                       {person1.role_type === "crew" ? (
-                        <View>
-                          <Text style={styles(colors).department}>
-                            {person1.department || "Crew"}
-                          </Text>
-                          <Text style={styles(colors).character}>
-                            {person1.job || "Unknown job"}
-                          </Text>
-                        </View>
+                        displayMode === "comparison" ? (
+                          <>
+                            <Text style={styles(colors).department}>
+                              {person1.department || "Crew"}
+                            </Text>
+                            <Text style={styles(colors).character}>
+                              {`in "${selectedMediaItem1?.name}": ${
+                                person1.job || "Unknown job"
+                              }`}
+                            </Text>
+                            <Text style={styles(colors).character}>
+                              {`in "${selectedMediaItem2?.name}": ${
+                                person2.job || "Unknown job"
+                              }`}
+                            </Text>
+                          </>
+                        ) : (
+                          <View>
+                            <Text style={styles(colors).department}>
+                              {person1.department || "Crew"}
+                            </Text>
+                            <Text style={styles(colors).character}>
+                              {person1.job || "Unknown job"}
+                            </Text>
+                          </View>
+                        )
                       ) : displayMode === "comparison" ? (
                         <>
                           <Text style={styles(colors).character}>
