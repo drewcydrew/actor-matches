@@ -51,14 +51,14 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
       return "Select a title to see its cast";
     } else if (selectedMediaItem1 && !selectedMediaItem2) {
       const type1 = getMediaTypeText(selectedMediaItem1);
-      return `Cast of "${selectedMediaItem1.title}" (${type1})`;
+      return `Cast of "${selectedMediaItem1.name}" (${type1})`;
     } else if (!selectedMediaItem1 && selectedMediaItem2) {
       const type2 = getMediaTypeText(selectedMediaItem2);
-      return `Cast of "${selectedMediaItem2.title}" (${type2})`;
+      return `Cast of "${selectedMediaItem2.name}" (${type2})`;
     } else if (selectedMediaItem1 && selectedMediaItem2) {
       const type1 = getMediaTypeText(selectedMediaItem1);
       const type2 = getMediaTypeText(selectedMediaItem2);
-      return `Common cast in "${selectedMediaItem1.title}" (${type1}) and "${selectedMediaItem2.title}" (${type2})`;
+      return `Common cast in "${selectedMediaItem1.name}" (${type1}) and "${selectedMediaItem2.name}" (${type2})`;
     } else {
       return "Cast Display";
     }
@@ -143,14 +143,14 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                     ) : displayMode === "comparison" ? (
                       <>
                         <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem1?.title}": ${
+                          {`in "${selectedMediaItem1?.name}": ${
                             item.characterInMedia1 ||
                             item.character ||
                             "Unknown role"
                           }`}
                         </Text>
                         <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem2?.title}": ${
+                          {`in "${selectedMediaItem2?.name}": ${
                             item.characterInMedia2 ||
                             item.character ||
                             "Unknown role"

@@ -6,12 +6,14 @@ import React, {
   useEffect,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import tmdbApi, {
+import {
   Film,
   CastMember,
   MovieSearchResult,
   TVShow,
-} from "../api/tmdbApi";
+  MediaItem,
+} from "../types/types";
+import tmdbApi from "../api/tmdbApi";
 
 // Storage keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -20,21 +22,6 @@ const STORAGE_KEYS = {
   CAST_MEMBER_1: "actor-matches:selectedCastMember1",
   CAST_MEMBER_2: "actor-matches:selectedCastMember2",
 };
-
-// Define a unified MediaItem type that can be either a Film or a TVShow
-export interface MediaItem {
-  id: number;
-  title: string; // For movies and normalized TV shows
-  name?: string; // Original name for TV shows
-  release_date?: string; // For movies
-  first_air_date?: string; // For TV shows
-  character?: string;
-  popularity: number;
-  overview?: string;
-  poster_path?: string;
-  vote_average?: number;
-  media_type: "movie" | "tv"; // Explicitly track the media type
-}
 
 // Convert external types to our unified MediaItem
 export const convertToMediaItem = (
@@ -45,6 +32,7 @@ export const convertToMediaItem = (
     const film = item as Film;
     return {
       id: film.id,
+      name: film.title, // Use title for movies
       title: film.title,
       release_date: film.release_date,
       character: film.character,
@@ -58,16 +46,17 @@ export const convertToMediaItem = (
     const tvShow = item as TVShow;
     return {
       id: tvShow.id,
-      title: tvShow.name, // Normalize name to title for consistency
-      name: tvShow.name, // Keep original name
+      name: tvShow.name,
+      title: tvShow.name, // Set title to name for consistency in rendering
       first_air_date: tvShow.first_air_date,
+      episode_count: tvShow.episode_count,
       character: tvShow.character,
       popularity: tvShow.popularity,
       overview: tvShow.overview,
       poster_path: tvShow.poster_path,
       vote_average: tvShow.vote_average,
       media_type: "tv",
-    };
+    } as MediaItem; // Type assertion since MediaItem is a union type
   }
 };
 
@@ -75,6 +64,7 @@ export const convertToMediaItem = (
 const DEFAULT_MEDIA_1: MediaItem = {
   id: 238,
   title: "The Godfather",
+  name: "The Godfather",
   release_date: "1972-03-14",
   popularity: 92.179,
   overview:
@@ -87,6 +77,7 @@ const DEFAULT_MEDIA_1: MediaItem = {
 const DEFAULT_MEDIA_2: MediaItem = {
   id: 242,
   title: "The Godfather Part III",
+  name: "The Godfather Part III",
   release_date: "1990-12-25",
   popularity: 45.897,
   overview:
@@ -117,10 +108,24 @@ export interface CommonCastMember extends CastMember {
 }
 
 // Extended MediaItem interface to include character information for actors
-export interface CommonMediaItem extends MediaItem {
+export interface CommonMediaItem {
+  // Base MediaItem properties we need
+  id: number;
+  title?: string; // Make title optional since TV shows use name
+  name?: string; // Keep name optional for movies
+  media_type: "movie" | "tv";
+  popularity: number;
+  overview?: string;
+  poster_path?: string;
+  vote_average?: number;
+  character?: string;
+  release_date?: string;
+  first_air_date?: string;
+  episode_count?: number;
+
+  // Additional properties for character/role information
   characterForActor1?: string;
   characterForActor2?: string;
-
   roleType?: "cast" | "crew";
   role1Type?: "cast" | "crew";
   role2Type?: "cast" | "crew";
@@ -186,18 +191,28 @@ interface FilmContextType {
   ) => Promise<void>;
 
   // Search functionality
-  searchFilms: (query: string) => Promise<{
+  /*searchFilms: (query: string) => Promise<{
     results: Film[];
     error: string | null;
-  }>;
+  }>;*/
 
-  searchTVShows: (query: string) => Promise<{
+  /*searchTVShows: (query: string) => Promise<{
     results: TVShow[];
     error: string | null;
-  }>;
+  }>;*/
 
   searchActors: (query: string) => Promise<{
     results: Actor[];
+    error: string | null;
+  }>;
+
+  getMediaItems: (query: string) => Promise<{
+    results: MediaItem[];
+    error: string | null;
+  }>;
+
+  getCredits: (actorId: number) => Promise<{
+    results: MediaItem[];
     error: string | null;
   }>;
 }
@@ -221,9 +236,11 @@ const FilmContext = createContext<FilmContextType>({
   mediaError: "",
   refreshCastData: async () => {},
   getActorFilmography: async () => {},
-  searchFilms: async () => ({ results: [], error: null }),
-  searchTVShows: async () => ({ results: [], error: null }),
+  //searchFilms: async () => ({ results: [], error: null }),
+  //searchTVShows: async () => ({ results: [], error: null }),
   searchActors: async () => ({ results: [], error: null }),
+  getMediaItems: async () => ({ results: [], error: null }),
+  getCredits: async () => ({ results: [], error: null }),
 });
 
 // Custom hook to use the film context
@@ -404,6 +421,153 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
       );
     }
   }, [selectedCastMember1, selectedCastMember2, isLoading]);
+
+  const getCredits = async (
+    actorId: number
+  ): Promise<{
+    results: MediaItem[];
+    error: string | null;
+  }> => {
+    if (!actorId) {
+      return { results: [], error: "Invalid actor ID" };
+    }
+
+    try {
+      // Fetch both movie and TV credits concurrently
+      const [movieCreditsResponse, tvCreditsResponse] = await Promise.all([
+        tmdbApi.getActorMovieCredits(actorId),
+        tmdbApi.getActorTVCredits(actorId),
+      ]);
+
+      let combinedResults: MediaItem[] = [];
+
+      // Process movie cast credits
+      if (movieCreditsResponse.cast && movieCreditsResponse.cast.length > 0) {
+        const movieCastItems = movieCreditsResponse.cast
+          .filter((item) => item.release_date)
+          .map((item) => ({
+            ...convertToMediaItem(item, "movie"),
+            role_type: "cast" as const,
+          }));
+        combinedResults = [...combinedResults, ...movieCastItems];
+      }
+
+      // Process movie crew credits
+      if (movieCreditsResponse.crew && movieCreditsResponse.crew.length > 0) {
+        const movieCrewItems = movieCreditsResponse.crew
+          .filter((item) => item.release_date)
+          .map((item) => ({
+            ...convertToMediaItem(item, "movie"),
+            role_type: "crew" as const,
+            character: item.job,
+            department: item.department,
+          }));
+        combinedResults = [...combinedResults, ...movieCrewItems];
+      }
+
+      // Process TV cast credits - fix type issues
+      if (tvCreditsResponse.cast && tvCreditsResponse.cast.length > 0) {
+        const tvCastItems = tvCreditsResponse.cast
+          // Type assertion to tell TypeScript these are TVShow objects
+          .filter((item: any) => item.first_air_date)
+          .map((item: any) => ({
+            ...convertToMediaItem(item, "tv"),
+            role_type: "cast" as const,
+          }));
+        combinedResults = [...combinedResults, ...tvCastItems];
+      }
+
+      // Process TV crew credits - fix type issues
+      if (tvCreditsResponse.crew && tvCreditsResponse.crew.length > 0) {
+        const tvCrewItems = tvCreditsResponse.crew
+          // Type assertion to tell TypeScript these are TVShow-like objects
+          .filter((item: any) => item.first_air_date)
+          .map((item: any) => ({
+            ...convertToMediaItem(
+              {
+                ...item,
+                name: item.name || item.title || "Unknown", // Ensure name exists for TV shows
+                media_type: "tv",
+              },
+              "tv"
+            ),
+            role_type: "crew" as const,
+            character: item.job,
+            department: item.department,
+          }));
+        combinedResults = [...combinedResults, ...tvCrewItems];
+      }
+
+      // Sort all results by popularity (descending)
+      const sortedResults = combinedResults.sort(
+        (a, b) => b.popularity - a.popularity
+      );
+
+      if (sortedResults.length === 0) {
+        return { results: [], error: "No credits found for this actor" };
+      }
+
+      return {
+        results: sortedResults,
+        error: null,
+      };
+    } catch (err) {
+      console.error("Error fetching actor credits:", err);
+      return {
+        results: [],
+        error: "Failed to load actor credits",
+      };
+    }
+  };
+
+  const getMediaItems = async (
+    query: string
+  ): Promise<{
+    results: MediaItem[];
+    error: string | null;
+  }> => {
+    if (!query.trim()) {
+      return { results: [], error: "Please enter a title to search" };
+    }
+
+    try {
+      // Search for both movies and TV shows concurrently
+      const [moviesResponse, tvShowsResponse] = await Promise.all([
+        searchFilms(query),
+        searchTVShows(query),
+      ]);
+
+      // Convert movies to MediaItem format
+      const movieItems = moviesResponse.results.map((film) =>
+        convertToMediaItem(film, "movie")
+      );
+
+      // Convert TV shows to MediaItem format
+      const tvItems = tvShowsResponse.results.map((show) =>
+        convertToMediaItem(show, "tv")
+      );
+
+      // Combine and sort results by popularity
+      const combinedResults = [...movieItems, ...tvItems].sort(
+        (a, b) => b.popularity - a.popularity
+      );
+
+      if (combinedResults.length === 0) {
+        return { results: [], error: "No movies or TV shows found" };
+      }
+
+      return {
+        results: combinedResults,
+        error: null,
+      };
+    } catch (err) {
+      console.error("Error searching for media:", err);
+      return {
+        results: [],
+        error: "An error occurred while searching for movies and TV shows",
+      };
+    }
+  };
 
   // Function to fetch cast data based on selected media
   const fetchCastData = async () => {
@@ -1132,8 +1296,10 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     refreshCastData: fetchCastData,
     getActorFilmography,
     searchFilms,
-    searchTVShows,
+    //searchTVShows,
     searchActors,
+    getMediaItems,
+    getCredits,
   };
 
   // Show a loading state if we're still initializing from AsyncStorage

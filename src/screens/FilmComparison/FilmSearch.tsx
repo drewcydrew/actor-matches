@@ -10,10 +10,10 @@ import {
   Image,
   Modal,
 } from "react-native";
-import { Film, TVShow } from "../../api/tmdbApi";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext, MediaItem } from "../../context/FilmContext";
+import { useFilmContext } from "../../context/FilmContext";
+import { MediaItem } from "../../types/types";
 
 // Add debounce helper function for smoother autocomplete
 const debounce = (func: Function, delay: number) => {
@@ -23,11 +23,6 @@ const debounce = (func: Function, delay: number) => {
     timer = setTimeout(() => func.apply(this, args), delay);
   };
 };
-
-// Define SearchItem type for local component use
-type SearchItem =
-  | (Film & { media_type?: "movie" })
-  | (TVShow & { media_type: "tv" });
 
 interface MediaSearchProps {
   onSelectMedia: (media: MediaItem | null) => void;
@@ -43,14 +38,13 @@ const FilmSearch = ({
 }: MediaSearchProps) => {
   // Get theme colors and film context
   const { colors } = useTheme();
-  const { searchFilms, searchTVShows } = useFilmContext();
+  const { getMediaItems } = useFilmContext();
 
   // Regular state
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchItem[]>([]);
+  const [searchResults, setSearchResults] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [searchMode, setSearchMode] = useState<"movies" | "tv">("movies");
 
   // Modal state (replacing expanded state)
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -60,7 +54,7 @@ const FilmSearch = ({
 
   // Create debounced search function for autocomplete
   const debouncedSearch = useCallback(
-    debounce(async (query: string, mode: "movies" | "tv") => {
+    debounce(async (query: string) => {
       if (!query.trim() || query.length < 2) {
         setSearchResults([]);
         setIsAutocompleting(false);
@@ -72,58 +66,34 @@ const FilmSearch = ({
       setIsAutocompleting(true);
 
       try {
-        if (mode === "movies") {
-          const { results, error: searchError } = await searchFilms(query);
+        const { results, error: searchError } = await getMediaItems(query);
 
-          if (searchError) {
-            setError(searchError);
-            setSearchResults([]);
-          } else if (results.length > 0) {
-            // Add media_type to movie results and show top 6 for autocomplete
-            setSearchResults(
-              results
-                .map((movie) => ({ ...movie, media_type: "movie" as const }))
-                .slice(0, 6)
-            );
-          } else {
-            setSearchResults([]);
-            setError("No matching films found");
-          }
+        if (searchError) {
+          setError(searchError);
+          setSearchResults([]);
+        } else if (results.length > 0) {
+          // Show top 6 results for autocomplete
+          setSearchResults(results.slice(0, 6));
         } else {
-          // Handle TV show search
-          const { results, error: searchError } = await searchTVShows(query);
-
-          if (searchError) {
-            setError(searchError);
-            setSearchResults([]);
-          } else if (results.length > 0) {
-            // Add media_type property to TV shows and show top 6 for autocomplete
-            setSearchResults(
-              results
-                .map((show) => ({ ...show, media_type: "tv" as const }))
-                .slice(0, 6)
-            );
-          } else {
-            setSearchResults([]);
-            setError("No matching TV shows found");
-          }
+          setSearchResults([]);
+          setError("No matching titles found");
         }
       } catch (err) {
         console.error("Autocomplete error:", err);
         setSearchResults([]);
-        setError(`Error searching for ${mode === "movies" ? "films" : "TV shows"}`);
+        setError("Error searching for media");
       } finally {
         setLoading(false);
       }
     }, 300), // 300ms delay before searching
-    [searchFilms, searchTVShows]
+    [getMediaItems]
   );
 
   // Handle input changes and trigger autocomplete
   const handleInputChange = (text: string) => {
     setSearchQuery(text);
     if (text.length >= 2) {
-      debouncedSearch(text, searchMode);
+      debouncedSearch(text);
     } else {
       setSearchResults([]);
       setIsAutocompleting(false);
@@ -174,90 +144,29 @@ const FilmSearch = ({
     setIsAutocompleting(false); // We're doing a full search, not autocomplete
 
     try {
-      if (searchMode === "movies") {
-        const { results, error: searchError } = await searchFilms(searchQuery);
+      const { results, error: searchError } = await getMediaItems(searchQuery);
 
-        if (searchError) {
-          setError(searchError);
-        } else if (results.length > 0) {
-          // Add media_type to movie results
-          setSearchResults(
-            results.map((movie) => ({ ...movie, media_type: "movie" as const }))
-          );
-        } else {
-          setError("No films found");
-        }
+      if (searchError) {
+        setError(searchError);
+      } else if (results.length > 0) {
+        setSearchResults(results);
       } else {
-        // Handle TV show search
-        const { results, error: searchError } = await searchTVShows(
-          searchQuery
-        );
-
-        if (searchError) {
-          setError(searchError);
-        } else if (results.length > 0) {
-          // Add media_type property to TV shows
-          setSearchResults(
-            results.map((show) => ({ ...show, media_type: "tv" as const }))
-          );
-        } else {
-          setError("No TV shows found");
-        }
+        setError("No matching titles found");
       }
     } catch (err) {
-      setError(
-        `An error occurred while searching for ${
-          searchMode === "movies" ? "movies" : "TV shows"
-        }`
-      );
+      setError("An error occurred while searching for media");
       console.error(err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Convert search result to MediaItem
-  const convertToMediaItem = (item: SearchItem): MediaItem => {
-    const isTVShow = item.media_type === "tv" || "name" in item;
-
-    if (isTVShow) {
-      const tvShow = item as TVShow & { media_type: "tv" };
-      return {
-        id: tvShow.id,
-        title: tvShow.name,
-        name: tvShow.name,
-        first_air_date: tvShow.first_air_date,
-        popularity: tvShow.popularity,
-        overview: tvShow.overview,
-        poster_path: tvShow.poster_path,
-        vote_average: tvShow.vote_average,
-        media_type: "tv",
-      };
-    } else {
-      const movie = item as Film & { media_type?: "movie" };
-      return {
-        id: movie.id,
-        title: movie.title,
-        release_date: movie.release_date,
-        popularity: movie.popularity,
-        overview: movie.overview,
-        poster_path: movie.poster_path,
-        vote_average: movie.vote_average,
-        media_type: "movie",
-      };
-    }
-  };
-
   // Media item renderer
-  const renderMediaItem = ({ item }: { item: SearchItem }) => {
-    // Check if this is a TV show based on media_type or name property
-    const isTVShow = item.media_type === "tv" || "name" in item;
-
+  const renderMediaItem = ({ item }: { item: MediaItem }) => {
     // Get title/name and release date based on item type
-    const title = isTVShow ? (item as TVShow).name : (item as Film).title;
-    const releaseDate = isTVShow
-      ? (item as TVShow).first_air_date
-      : (item as Film).release_date;
+    const title = item.name || "Untitled";
+    const releaseDate =
+      item.media_type === "tv" ? item.first_air_date : item.release_date;
 
     const year = releaseDate
       ? new Date(releaseDate).getFullYear().toString()
@@ -270,8 +179,7 @@ const FilmSearch = ({
           selectedMedia?.id === item.id ? styles(colors).selectedMedia : null,
         ]}
         onPress={() => {
-          const mediaItem = convertToMediaItem(item);
-          onSelectMedia(mediaItem);
+          onSelectMedia(item);
           setIsModalVisible(false); // Close modal after selection
         }}
         activeOpacity={0.7}
@@ -285,11 +193,11 @@ const FilmSearch = ({
           />
         )}
         <View style={styles(colors).mediaDetails}>
-          <Text style={styles(colors).mediaTitle}>{title || "Untitled"}</Text>
+          <Text style={styles(colors).mediaTitle}>{title}</Text>
           <View style={styles(colors).mediaTypeContainer}>
             <Text style={styles(colors).mediaYear}>{year}</Text>
             <Text style={styles(colors).mediaTypeLabel}>
-              {isTVShow ? "TV" : "Movie"}
+              {item.media_type === "tv" ? "TV" : "Movie"}
             </Text>
           </View>
         </View>
@@ -321,7 +229,7 @@ const FilmSearch = ({
           )}
           <View style={styles(colors).headerTextContainer}>
             <Text style={styles(colors).headerMediaTitle} numberOfLines={1}>
-              {selectedMedia.title}
+              {selectedMedia.name}
             </Text>
             {year && (
               <Text style={styles(colors).headerMediaYear}>
@@ -390,64 +298,13 @@ const FilmSearch = ({
               </TouchableOpacity>
             </View>
 
-            {/* Media type selector */}
-            <View style={styles(colors).mediaTypeSelector}>
-              <TouchableOpacity
-                style={[
-                  styles(colors).mediaTypeButton,
-                  searchMode === "movies" &&
-                    styles(colors).selectedMediaTypeButton,
-                ]}
-                onPress={() => {
-                  setSearchMode("movies");
-                  if (searchQuery.length >= 2) {
-                    debouncedSearch(searchQuery, "movies");
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles(colors).mediaTypeText,
-                    searchMode === "movies" &&
-                      styles(colors).selectedMediaTypeText,
-                  ]}
-                >
-                  Movies
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles(colors).mediaTypeButton,
-                  searchMode === "tv" && styles(colors).selectedMediaTypeButton,
-                ]}
-                onPress={() => {
-                  setSearchMode("tv");
-                  if (searchQuery.length >= 2) {
-                    debouncedSearch(searchQuery, "tv");
-                  }
-                }}
-              >
-                <Text
-                  style={[
-                    styles(colors).mediaTypeText,
-                    searchMode === "tv" && styles(colors).selectedMediaTypeText,
-                  ]}
-                >
-                  TV Shows
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             {/* Search controls */}
             <View style={styles(colors).searchContainer}>
               <View style={styles(colors).inputRow}>
                 <View style={styles(colors).inputContainer}>
                   <TextInput
                     style={styles(colors).input}
-                    placeholder={`Enter ${
-                      searchMode === "movies" ? "film" : "TV show"
-                    } title`}
+                    placeholder="Enter movie or TV show title"
                     placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
                     onChangeText={handleInputChange}
@@ -481,7 +338,7 @@ const FilmSearch = ({
                     <View style={styles(colors).autocompleteLoading}>
                       <ActivityIndicator size="small" color={colors.primary} />
                       <Text style={styles(colors).autocompleteLoadingText}>
-                        Finding {searchMode === "movies" ? "movies" : "TV shows"}...
+                        Finding movies and TV shows...
                       </Text>
                     </View>
                   ) : searchResults.length > 0 ? (
@@ -492,14 +349,14 @@ const FilmSearch = ({
                       <FlatList
                         data={searchResults}
                         renderItem={renderMediaItem}
-                        keyExtractor={(item) =>
-                          `${item.media_type || "movie"}-${item.id}`
-                        }
+                        keyExtractor={(item) => `${item.media_type}-${item.id}`}
                         style={styles(colors).autoCompleteList}
                       />
                     </>
                   ) : error ? (
-                    <Text style={styles(colors).autocompleteError}>{error}</Text>
+                    <Text style={styles(colors).autocompleteError}>
+                      {error}
+                    </Text>
                   ) : null}
                 </View>
               )}
@@ -507,7 +364,9 @@ const FilmSearch = ({
               {/* Show full search results when not in autocomplete mode */}
               {!isAutocompleting && (
                 <>
-                  {error ? <Text style={styles(colors).error}>{error}</Text> : null}
+                  {error ? (
+                    <Text style={styles(colors).error}>{error}</Text>
+                  ) : null}
 
                   {loading ? (
                     <ActivityIndicator size="large" color={colors.primary} />
@@ -515,16 +374,12 @@ const FilmSearch = ({
                     <FlatList
                       data={searchResults}
                       renderItem={renderMediaItem}
-                      keyExtractor={(item) =>
-                        `${item.media_type || "movie"}-${item.id}`
-                      }
+                      keyExtractor={(item) => `${item.media_type}-${item.id}`}
                       style={styles(colors).list}
                       ListEmptyComponent={
                         !error && !loading ? (
                           <Text style={styles(colors).emptyText}>
-                            Search for{" "}
-                            {searchMode === "movies" ? "a film" : "a TV show"} to
-                            see results
+                            Search for a movie or TV show to see results
                           </Text>
                         ) : null
                       }

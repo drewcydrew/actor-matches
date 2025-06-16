@@ -9,7 +9,8 @@ import {
   Image,
   Modal,
 } from "react-native";
-import tmdbApi, { CastMember, Film } from "../../api/tmdbApi";
+import tmdbApi from "../../api/tmdbApi";
+import { CastMember, Film } from "../../types/types";
 import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { MediaItem } from "../../context/FilmContext";

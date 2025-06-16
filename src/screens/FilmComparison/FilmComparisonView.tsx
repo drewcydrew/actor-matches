@@ -1,14 +1,11 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import {
-  useFilmContext,
-  SelectedActor,
-  MediaItem,
-} from "../../context/FilmContext";
+import { useFilmContext, SelectedActor } from "../../context/FilmContext";
 import FilmSearch from "./FilmSearch";
 import ActorDisplay from "./ActorDisplay";
 import ActorFilmographyModal from "./ActorFilmographyModal";
+import { MediaItem } from "../../types/types";
 
 const FilmComparisonView = () => {
   const { colors } = useTheme();
@@ -36,22 +33,29 @@ const FilmComparisonView = () => {
     setIsActorFilmographyVisible(true);
   };
 
-  // Function to convert MediaItem to Film for backwards compatibility with ActorFilmographyModal
-  const convertMediaItemToFilm = (media: MediaItem | null) => {
+  // Function to ensure media items have all required properties
+  const ensureMediaItemProperties = (
+    media: MediaItem | null
+  ): MediaItem | null => {
     if (!media) return null;
 
-    return {
-      id: media.id,
-      title: media.title,
-      release_date:
-        media.media_type === "tv" ? media.first_air_date : media.release_date,
-      popularity: media.popularity,
-      overview: media.overview,
-      poster_path: media.poster_path,
-      vote_average: media.vote_average,
-    };
+    if (media.media_type === "movie") {
+      // For movies, return with explicit movie type
+      return {
+        ...media,
+        name: media.name || media.title || "Unknown",
+        title: media.title || media.name || "Unknown",
+        media_type: "movie" as const, // Use const assertion for literal type
+      };
+    } else {
+      // For TV shows, return with explicit TV type
+      return {
+        ...media,
+        name: media.name || "Unknown",
+        media_type: "tv" as const, // Use const assertion for literal type
+      };
+    }
   };
-
   return (
     <>
       {/* First media search */}
@@ -82,20 +86,14 @@ const FilmComparisonView = () => {
             setIsActorFilmographyVisible(false);
             setSelectedActor(null);
           }}
-          // Film selection handlers
-          onSelectFilm1={(film) => {
-            setSelectedMediaItem1({
-              ...film,
-              media_type: "movie",
-            });
+          // Film selection handlers - FIXED: preserve original media_type
+          onSelectFilm1={(media) => {
+            setSelectedMediaItem1(media);
             setSelectedActor(null);
             setIsActorFilmographyVisible(false);
           }}
-          onSelectFilm2={(film) => {
-            setSelectedMediaItem2({
-              ...film,
-              media_type: "movie",
-            });
+          onSelectFilm2={(media) => {
+            setSelectedMediaItem2(media);
             setSelectedActor(null);
             setIsActorFilmographyVisible(false);
           }}
@@ -106,9 +104,9 @@ const FilmComparisonView = () => {
           onSelectActor2={(actor) => {
             setSelectedCastMember2(actor);
           }}
-          // Current selections for films and actors
-          selectedFilm1={convertMediaItemToFilm(selectedMediaItem1)}
-          selectedFilm2={convertMediaItemToFilm(selectedMediaItem2)}
+          // Current selections for films and actors - FIXED: ensure proper MediaItem
+          selectedFilm1={ensureMediaItemProperties(selectedMediaItem1)}
+          selectedFilm2={ensureMediaItemProperties(selectedMediaItem2)}
           selectedActor1={selectedCastMember1}
           selectedActor2={selectedCastMember2}
         />
