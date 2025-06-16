@@ -1,3 +1,22 @@
+export interface Person {
+  id: number;
+  name: string;
+  profile_path?: string;
+  gender?: number;
+  popularity?: number;
+  role_type?: "cast" | "crew"; // Discriminator field to identify type
+  known_for_department?: string; // Optional field for known for department
+  known_for?: Array<{ title?: string; name?: string }>;
+
+  // Cast-specific properties (optional for crew)
+  character?: string;
+  order?: number;
+
+  // Crew-specific properties (optional for cast)
+  job?: string;
+  department?: string;
+}
+
 export interface BaseMediaItem {
   id: number;
   name: string;
@@ -64,25 +83,6 @@ export interface ActorTVCredits {
   crew: Film[];
 }
 
-export interface Person {
-  id: number;
-  name: string;
-  profile_path?: string;
-  gender?: number;
-  popularity?: number;
-  role_type?: "cast" | "crew"; // Discriminator field to identify type
-  known_for_department?: string; // Optional field for known for department
-  known_for?: Array<{ title?: string; name?: string }>;
-
-  // Cast-specific properties (optional for crew)
-  character?: string;
-  order?: number;
-
-  // Crew-specific properties (optional for cast)
-  job?: string;
-  department?: string;
-}
-
 export interface CastMember {
   id: number;
   name: string;
@@ -125,51 +125,4 @@ export interface TVShowAggregateCredits {
     gender?: number;
     popularity?: number;
   }[];
-}
-
-export interface CommonCastMember extends CastMember {
-  characterInMedia1?: string;
-  characterInMedia2?: string;
-  role_type?: "cast" | "crew"; // Optional role type for crew members
-  department?: string; // For crew members, to specify their department
-}
-
-// Extended MediaItem interface to include character information for actors
-export interface CommonMediaItem {
-  // Base MediaItem properties we need
-  id: number;
-  title?: string; // Make title optional since TV shows use name
-  name?: string; // Keep name optional for movies
-  media_type: "movie" | "tv";
-  popularity: number;
-  overview?: string;
-  poster_path?: string;
-  vote_average?: number;
-  character?: string;
-  release_date?: string;
-  first_air_date?: string;
-  episode_count?: number;
-
-  // Additional properties for character/role information
-  characterForActor1?: string;
-  characterForActor2?: string;
-  roleType?: "cast" | "crew";
-  role1Type?: "cast" | "crew";
-  role2Type?: "cast" | "crew";
-  department?: string;
-  department1?: string;
-  department2?: string;
-  job?: string;
-  job1?: string;
-  job2?: string;
-}
-
-export interface Actor {
-  id: number;
-  name: string;
-  profile_path?: string;
-  known_for_department?: string;
-  popularity?: number;
-  known_for?: Array<{ title?: string; name?: string }>;
-  role_type?: "cast" | "crew"; // Optional role type for actors
 }

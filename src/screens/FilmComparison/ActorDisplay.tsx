@@ -10,14 +10,11 @@ import {
 import { useFilmContext } from "../../context/FilmContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
+import { Person } from "../../types/types"; // Import Person type
 
-// Props for the component
+// Update props to use Person type
 interface ActorDisplayProps {
-  onActorSelect?: (actor: {
-    id: number;
-    name: string;
-    profile_path?: string;
-  }) => void;
+  onActorSelect?: (actor: Person) => void;
 }
 
 const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
@@ -99,73 +96,75 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                 : "No cast information available"}
             </Text>
           ) : (
-            castMembers.map((item) => (
-              <TouchableOpacity
-                // Create a unique key using both id and role_type
-                key={
-                  item.role_type === "crew"
-                    ? `${item.id}-${item.role_type}-${item.department}-${item.character}`
-                    : `${item.id}-${item.role_type || "cast"}`
-                }
-                style={styles(colors).actorItem}
-                onPress={() =>
-                  onActorSelect && selectedMediaItem1 && onActorSelect(item)
-                }
-                disabled={!onActorSelect || !selectedMediaItem1}
-                activeOpacity={onActorSelect && selectedMediaItem1 ? 0.7 : 1}
-              >
-                <View style={styles(colors).actorItemContent}>
-                  {item.profile_path ? (
-                    <Image
-                      source={{
-                        uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
-                      }}
-                      style={styles(colors).actorImage}
-                    />
-                  ) : (
-                    <View style={styles(colors).noImagePlaceholder}>
-                      <Text style={styles(colors).noImageText}>No Image</Text>
-                    </View>
-                  )}
-                  <View style={styles(colors).actorInfo}>
-                    <Text style={styles(colors).actorName}>{item.name}</Text>
+            // Map through the 2D array, destructuring each pair
+            castMembers.map((personPair, index) => {
+              // Destructure the person pair
+              const [person1, person2] = personPair;
 
-                    {/* Check if it's a crew member and display appropriate information */}
-                    {item.role_type === "crew" ? (
-                      <View>
-                        <Text style={styles(colors).department}>
-                          {item.department || "Crew"}
-                        </Text>
-                        <Text style={styles(colors).character}>
-                          {item.character || "Unknown role"}
-                        </Text>
-                      </View>
-                    ) : displayMode === "comparison" ? (
-                      <>
-                        <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem1?.name}": ${
-                            item.characterInMedia1 ||
-                            item.character ||
-                            "Unknown role"
-                          }`}
-                        </Text>
-                        <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem2?.name}": ${
-                            item.characterInMedia2 ||
-                            item.character ||
-                            "Unknown role"
-                          }`}
-                        </Text>
-                      </>
+              return (
+                <TouchableOpacity
+                  // Create a unique key using both id and role_type
+                  key={`${person1.id}-${index}`}
+                  style={styles(colors).actorItem}
+                  onPress={() =>
+                    onActorSelect &&
+                    selectedMediaItem1 &&
+                    onActorSelect(person1)
+                  }
+                  disabled={!onActorSelect || !selectedMediaItem1}
+                  activeOpacity={onActorSelect && selectedMediaItem1 ? 0.7 : 1}
+                >
+                  <View style={styles(colors).actorItemContent}>
+                    {person1.profile_path ? (
+                      <Image
+                        source={{
+                          uri: `https://image.tmdb.org/t/p/w185${person1.profile_path}`,
+                        }}
+                        style={styles(colors).actorImage}
+                      />
                     ) : (
-                      <Text style={styles(colors).character}>
-                        {`as: ${item.character || "Unknown role"}`}
-                      </Text>
+                      <View style={styles(colors).noImagePlaceholder}>
+                        <Text style={styles(colors).noImageText}>No Image</Text>
+                      </View>
                     )}
+                    <View style={styles(colors).actorInfo}>
+                      <Text style={styles(colors).actorName}>
+                        {person1.name}
+                      </Text>
+
+                      {/* Check if it's a crew member and display appropriate information */}
+                      {person1.role_type === "crew" ? (
+                        <View>
+                          <Text style={styles(colors).department}>
+                            {person1.department || "Crew"}
+                          </Text>
+                          <Text style={styles(colors).character}>
+                            {person1.job || "Unknown job"}
+                          </Text>
+                        </View>
+                      ) : displayMode === "comparison" ? (
+                        <>
+                          <Text style={styles(colors).character}>
+                            {`in "${selectedMediaItem1?.name}": ${
+                              person1.character || "Unknown role"
+                            }`}
+                          </Text>
+                          <Text style={styles(colors).character}>
+                            {`in "${selectedMediaItem2?.name}": ${
+                              person2.character || "Unknown role"
+                            }`}
+                          </Text>
+                        </>
+                      ) : (
+                        <Text style={styles(colors).character}>
+                          {`as: ${person1.character || "Unknown role"}`}
+                        </Text>
+                      )}
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))
+                </TouchableOpacity>
+              );
+            })
           )}
         </View>
       )}
@@ -182,6 +181,7 @@ const styles = (colors: any) =>
       width: "100%",
       backgroundColor: colors.background,
     },
+
     department: {
       fontSize: 13,
       fontWeight: "500",

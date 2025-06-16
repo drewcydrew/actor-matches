@@ -13,21 +13,20 @@ import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext"; // Add this import
 import { Ionicons } from "@expo/vector-icons";
 import { MediaItem, Person } from "../../types/types"; // Use Person instead of CastMember
-import { Actor } from "../../types/types";
 
 interface FilmCastModalProps {
   filmId: number;
   filmTitle?: string;
   filmPosterPath?: string;
   mediaType?: "movie" | "tv";
-  onSelectActor1: (actor: Actor) => void;
-  onSelectActor2: (actor: Actor) => void;
+  onSelectActor1: (actor: Person) => void;
+  onSelectActor2: (actor: Person) => void;
   onSelectFilm1?: (film: MediaItem) => void;
   onSelectFilm2?: (film: MediaItem) => void;
   isVisible: boolean;
   onClose: () => void;
-  selectedActor1?: Actor | null;
-  selectedActor2?: Actor | null;
+  selectedActor1?: Person | null;
+  selectedActor2?: Person | null;
   selectedFilm1?: MediaItem | null;
   selectedFilm2?: MediaItem | null;
 }
@@ -114,7 +113,7 @@ const FilmCastModal = ({
   const handleSelectOption = (option: "actor1" | "actor2") => {
     if (selectedActor) {
       // Convert Person to Actor interface
-      const actorToPass: Actor = {
+      const actorToPass: Person = {
         id: selectedActor.id,
         name: selectedActor.name,
         profile_path: selectedActor.profile_path,
