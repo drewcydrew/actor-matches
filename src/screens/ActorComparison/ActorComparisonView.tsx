@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext, MediaItem } from "../../context/FilmContext"; // Import MediaItem
+import { useFilmContext } from "../../context/FilmContext"; // Import MediaItem
 import ActorSearch from "./ActorSearch";
 import FilmDisplay from "./FilmDisplay";
 import FilmCastModal from "./FilmCastModal";
+import { MediaItem } from "../../types/types";
 
 const ActorComparisonView = () => {
   const { colors } = useTheme();
@@ -21,9 +22,8 @@ const ActorComparisonView = () => {
 
   const [isFilmCastVisible, setIsFilmCastVisible] = useState(false);
   // Change type from Film to MediaItem
-  const [selectedFilmForCast, setSelectedFilmForCast] = useState<MediaItem | null>(
-    null
-  );
+  const [selectedFilmForCast, setSelectedFilmForCast] =
+    useState<MediaItem | null>(null);
 
   return (
     <>
@@ -54,7 +54,7 @@ const ActorComparisonView = () => {
         {selectedFilmForCast && (
           <FilmCastModal
             filmId={selectedFilmForCast.id}
-            filmTitle={selectedFilmForCast.title}
+            filmTitle={selectedFilmForCast.name}
             filmPosterPath={selectedFilmForCast.poster_path}
             mediaType={selectedFilmForCast.media_type}
             isVisible={isFilmCastVisible}

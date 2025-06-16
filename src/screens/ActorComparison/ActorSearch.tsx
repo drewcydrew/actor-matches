@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext, Actor } from "../../context/FilmContext";
+import { useFilmContext } from "../../context/FilmContext";
+import { Person } from "../../types/types";
 
 // Add debounce helper function for smoother autocomplete
 const debounce = (func: Function, delay: number) => {
@@ -24,8 +25,8 @@ const debounce = (func: Function, delay: number) => {
 };
 
 interface ActorSearchProps {
-  onSelectActor: (actor: Actor | null) => void; // Updated to accept null
-  selectedActor?: Actor | null;
+  onSelectActor: (actor: Person | null) => void; // Updated to accept null
+  selectedActor?: Person | null;
   defaultQuery?: string;
   performInitialSearch?: boolean;
   defaultActorId?: number;
@@ -39,10 +40,10 @@ const ActorSearch = ({
   defaultActorId,
 }: ActorSearchProps) => {
   const { colors } = useTheme();
-  const { searchActors } = useFilmContext();
+  const { searchPeople } = useFilmContext();
 
   const [searchQuery, setSearchQuery] = useState(defaultQuery);
-  const [actors, setActors] = useState<Actor[]>([]);
+  const [actors, setActors] = useState<Person[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -64,7 +65,7 @@ const ActorSearch = ({
       setIsAutocompleting(true);
 
       try {
-        const { results, error: searchError } = await searchActors(query);
+        const { results, error: searchError } = await searchPeople(query);
 
         if (searchError) {
           setError(searchError);
@@ -83,7 +84,7 @@ const ActorSearch = ({
         setLoading(false);
       }
     }, 300), // 300ms delay before searching
-    [searchActors]
+    [searchPeople]
   );
 
   // Handle input changes and trigger autocomplete
@@ -120,14 +121,14 @@ const ActorSearch = ({
         try {
           setLoading(true);
           const searchTerm = defaultQuery || "";
-          const { results, error: searchError } = await searchActors(
+          const { results, error: searchError } = await searchPeople(
             searchTerm
           );
 
           if (!searchError && results.length > 0) {
             // Find the actor with the matching ID
             const foundActor = results.find(
-              (person: Actor) => person.id === defaultActorId
+              (person: Person) => person.id === defaultActorId
             );
 
             if (foundActor) {
@@ -174,7 +175,7 @@ const ActorSearch = ({
     setIsAutocompleting(false); // We're doing a full search, not autocomplete
 
     try {
-      const { results, error: searchError } = await searchActors(searchQuery);
+      const { results, error: searchError } = await searchPeople(searchQuery);
 
       if (searchError) {
         setError(searchError);
@@ -202,7 +203,7 @@ const ActorSearch = ({
     }
   };
 
-  const renderActor = ({ item }: { item: Actor }) => (
+  const renderActor = ({ item }: { item: Person }) => (
     <TouchableOpacity
       style={[
         styles(colors).actorItem,
@@ -389,7 +390,9 @@ const ActorSearch = ({
                       />
                     </>
                   ) : error ? (
-                    <Text style={styles(colors).autocompleteError}>{error}</Text>
+                    <Text style={styles(colors).autocompleteError}>
+                      {error}
+                    </Text>
                   ) : null}
                 </View>
               )}
@@ -397,7 +400,9 @@ const ActorSearch = ({
               {/* Show full search results when not in autocomplete mode */}
               {!isAutocompleting && (
                 <>
-                  {error ? <Text style={styles(colors).error}>{error}</Text> : null}
+                  {error ? (
+                    <Text style={styles(colors).error}>{error}</Text>
+                  ) : null}
 
                   {loading ? (
                     <ActivityIndicator size="large" color={colors.primary} />

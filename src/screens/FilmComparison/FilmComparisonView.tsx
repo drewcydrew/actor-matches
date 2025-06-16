@@ -1,11 +1,12 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext, SelectedActor } from "../../context/FilmContext";
+import { useFilmContext } from "../../context/FilmContext";
 import FilmSearch from "./FilmSearch";
 import ActorDisplay from "./ActorDisplay";
 import ActorFilmographyModal from "./ActorFilmographyModal";
 import { MediaItem } from "../../types/types";
+import { Person } from "../../types/types";
 
 const FilmComparisonView = () => {
   const { colors } = useTheme();
@@ -21,14 +22,12 @@ const FilmComparisonView = () => {
   } = useFilmContext();
 
   // Local state for filmography modal
-  const [selectedActor, setSelectedActor] = useState<SelectedActor | null>(
-    null
-  );
+  const [selectedActor, setSelectedActor] = useState<Person | null>(null);
   const [isActorFilmographyVisible, setIsActorFilmographyVisible] =
     useState(false);
 
   // Handle actor selection
-  const handleActorSelect = (actor: SelectedActor) => {
+  const handleActorSelect = (actor: Person) => {
     setSelectedActor(actor);
     setIsActorFilmographyVisible(true);
   };

@@ -10,10 +10,10 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import {
   useFilmContext,
-  MediaItem,
-  CommonMediaItem,
+  convertCommonMediaToMediaItem,
 } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
+import { MediaItem, CommonMediaItem } from "../../types/types";
 
 // Define filter type
 type FilterMode = "all" | "movies" | "tv";
@@ -39,7 +39,7 @@ const FilmDisplay = ({
     commonMedia,
     mediaLoading,
     mediaError,
-    getActorFilmography,
+    //getActorFilmography,
     setSelectedCastMember1,
     setSelectedCastMember2,
   } = useFilmContext();
@@ -53,11 +53,6 @@ const FilmDisplay = ({
     setSelectedCastMember1(null);
     setSelectedCastMember2(null);
   };
-
-  // Fetch filmography data when actor props change
-  useEffect(() => {
-    getActorFilmography(actor1Id, actor2Id, actor1Name, actor2Name);
-  }, [actor1Id, actor2Id, actor1Name, actor2Name]);
 
   // Apply filtering when commonMedia or filterMode changes
   useEffect(() => {
@@ -232,7 +227,10 @@ const FilmDisplay = ({
               <TouchableOpacity
                 key={`${media.media_type}-${media.id}-${index}`}
                 style={styles(colors).mediaItem}
-                onPress={() => onFilmSelect && onFilmSelect(media)}
+                onPress={() =>
+                  onFilmSelect &&
+                  onFilmSelect(convertCommonMediaToMediaItem(media))
+                }
                 disabled={!onFilmSelect}
                 activeOpacity={onFilmSelect ? 0.7 : 1}
               >

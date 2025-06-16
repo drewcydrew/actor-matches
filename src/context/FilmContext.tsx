@@ -12,8 +12,12 @@ import {
   MovieSearchResult,
   TVShow,
   MediaItem,
+  Person,
 } from "../types/types";
 import tmdbApi from "../api/tmdbApi";
+import { CommonMediaItem } from "../types/types";
+import { CommonCastMember } from "../types/types";
+import { Actor } from "../types/types";
 
 // Storage keys for AsyncStorage
 const STORAGE_KEYS = {
@@ -60,6 +64,39 @@ export const convertToMediaItem = (
   }
 };
 
+export const convertCommonMediaToMediaItem = (
+  commonMedia: CommonMediaItem
+): MediaItem => {
+  // Base properties for both types
+  const baseProperties = {
+    id: commonMedia.id,
+    name: commonMedia.name || commonMedia.title || "Unknown",
+    character: commonMedia.character,
+    popularity: commonMedia.popularity || 0,
+    overview: commonMedia.overview,
+    poster_path: commonMedia.poster_path,
+    vote_average: commonMedia.vote_average,
+  };
+
+  if (commonMedia.media_type === "movie") {
+    // It's a movie, return a Film type
+    return {
+      ...baseProperties,
+      media_type: "movie" as const,
+      title: commonMedia.title || commonMedia.name || "Unknown",
+      release_date: commonMedia.release_date,
+    };
+  } else {
+    // It's a TV show
+    return {
+      ...baseProperties,
+      media_type: "tv" as const,
+      first_air_date: commonMedia.first_air_date,
+      episode_count: commonMedia.episode_count,
+    };
+  }
+};
+
 // Update default values to use the MediaItem type
 const DEFAULT_MEDIA_1: MediaItem = {
   id: 238,
@@ -87,72 +124,21 @@ const DEFAULT_MEDIA_2: MediaItem = {
   media_type: "movie",
 };
 
-const DEFAULT_ACTOR_1: SelectedActor = {
+const DEFAULT_ACTOR_1: Person = {
   id: 31,
   name: "Tom Hanks",
   profile_path: "/xndWFsBlClOJFRdhSt4NBwiPq2o.jpg",
+  role_type: "cast", // Optional role type for actors
 };
 
-const DEFAULT_ACTOR_2: SelectedActor = {
+const DEFAULT_ACTOR_2: Person = {
   id: 192,
   name: "Morgan Freeman",
   profile_path: "/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
+  role_type: "cast", // Optional role type for actors
 };
 
 // Define interfaces
-export interface CommonCastMember extends CastMember {
-  characterInMedia1?: string;
-  characterInMedia2?: string;
-  role_type?: "cast" | "crew"; // Optional role type for crew members
-  department?: string; // For crew members, to specify their department
-}
-
-// Extended MediaItem interface to include character information for actors
-export interface CommonMediaItem {
-  // Base MediaItem properties we need
-  id: number;
-  title?: string; // Make title optional since TV shows use name
-  name?: string; // Keep name optional for movies
-  media_type: "movie" | "tv";
-  popularity: number;
-  overview?: string;
-  poster_path?: string;
-  vote_average?: number;
-  character?: string;
-  release_date?: string;
-  first_air_date?: string;
-  episode_count?: number;
-
-  // Additional properties for character/role information
-  characterForActor1?: string;
-  characterForActor2?: string;
-  roleType?: "cast" | "crew";
-  role1Type?: "cast" | "crew";
-  role2Type?: "cast" | "crew";
-  department?: string;
-  department1?: string;
-  department2?: string;
-  job?: string;
-  job1?: string;
-  job2?: string;
-}
-
-// Actor interface for selection
-export interface SelectedActor {
-  id: number;
-  name: string;
-  profile_path?: string;
-}
-
-export interface Actor {
-  id: number;
-  name: string;
-  profile_path?: string;
-  known_for_department?: string;
-  popularity?: number;
-  known_for?: Array<{ title?: string; name?: string }>;
-  role_type?: "cast" | "crew"; // Optional role type for actors
-}
 
 // Define the shape of our context state
 interface FilmContextType {
@@ -163,10 +149,10 @@ interface FilmContextType {
   setSelectedMediaItem2: (media: MediaItem | null) => void;
 
   // Cast member selection
-  selectedCastMember1: SelectedActor | null;
-  selectedCastMember2: SelectedActor | null;
-  setSelectedCastMember1: (actor: SelectedActor | null) => void;
-  setSelectedCastMember2: (actor: SelectedActor | null) => void;
+  selectedCastMember1: Person | null;
+  selectedCastMember2: Person | null;
+  setSelectedCastMember1: (actor: Person | null) => void;
+  setSelectedCastMember2: (actor: Person | null) => void;
 
   // Cast data
   castMembers: CommonCastMember[];
@@ -190,19 +176,8 @@ interface FilmContextType {
     actor2Name?: string
   ) => Promise<void>;
 
-  // Search functionality
-  /*searchFilms: (query: string) => Promise<{
-    results: Film[];
-    error: string | null;
-  }>;*/
-
-  /*searchTVShows: (query: string) => Promise<{
-    results: TVShow[];
-    error: string | null;
-  }>;*/
-
-  searchActors: (query: string) => Promise<{
-    results: Actor[];
+  searchPeople: (query: string) => Promise<{
+    results: Person[];
     error: string | null;
   }>;
 
@@ -213,6 +188,14 @@ interface FilmContextType {
 
   getCredits: (actorId: number) => Promise<{
     results: MediaItem[];
+    error: string | null;
+  }>;
+
+  getCast: (
+    mediaId: number,
+    mediaType: "movie" | "tv"
+  ) => Promise<{
+    results: Person[];
     error: string | null;
   }>;
 }
@@ -236,11 +219,10 @@ const FilmContext = createContext<FilmContextType>({
   mediaError: "",
   refreshCastData: async () => {},
   getActorFilmography: async () => {},
-  //searchFilms: async () => ({ results: [], error: null }),
-  //searchTVShows: async () => ({ results: [], error: null }),
-  searchActors: async () => ({ results: [], error: null }),
+  searchPeople: async () => ({ results: [], error: null }),
   getMediaItems: async () => ({ results: [], error: null }),
   getCredits: async () => ({ results: [], error: null }),
+  getCast: async () => ({ results: [], error: null }),
 });
 
 // Custom hook to use the film context
@@ -261,9 +243,9 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
   // Actor selection state - initialize with null and load from storage
   const [selectedCastMember1, setSelectedCastMember1Internal] =
-    useState<SelectedActor | null>(null);
+    useState<Person | null>(null);
   const [selectedCastMember2, setSelectedCastMember2Internal] =
-    useState<SelectedActor | null>(null);
+    useState<Person | null>(null);
 
   // Loading state for initial data
   const [isLoading, setIsLoading] = useState(true);
@@ -371,7 +353,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
-  const setSelectedCastMember1 = async (actor: SelectedActor | null) => {
+  const setSelectedCastMember1 = async (actor: Person | null) => {
     setSelectedCastMember1Internal(actor);
     try {
       if (actor) {
@@ -387,7 +369,129 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
-  const setSelectedCastMember2 = async (actor: SelectedActor | null) => {
+  // Updated getCast function with proper type handling
+  const getCast = async (
+    mediaId: number,
+    mediaType: "movie" | "tv"
+  ): Promise<{
+    results: Person[];
+    error: string | null;
+  }> => {
+    if (!mediaId) {
+      return { results: [], error: "Invalid media ID" };
+    }
+
+    try {
+      let castMembers: Person[] = [];
+      let crewMembers: Person[] = [];
+
+      // Handle movie and TV show credits separately to address type issues
+      if (mediaType === "movie") {
+        // For movies, use getMovieCast
+        const movieCastData = await tmdbApi.getMovieCast(mediaId);
+
+        // Process movie cast members
+        if (movieCastData.cast && movieCastData.cast.length > 0) {
+          castMembers = movieCastData.cast.map((member) => ({
+            id: member.id,
+            name: member.name,
+            profile_path: member.profile_path,
+            character: member.character || "Unknown role",
+            popularity: member.popularity || 0,
+            gender: member.gender,
+            role_type: "cast" as const,
+          }));
+        }
+
+        // Process movie crew members
+        if (movieCastData.crew && movieCastData.crew.length > 0) {
+          crewMembers = movieCastData.crew.map((member) => ({
+            id: member.id,
+            name: member.name,
+            profile_path: member.profile_path,
+            job: member.job || "Unknown job",
+            department: member.department || "Other",
+            popularity: member.popularity || 0,
+            gender: member.gender,
+            role_type: "crew" as const,
+          }));
+        }
+      } else {
+        // For TV shows, use getTVShowAggregateCredits
+        const tvCastData = await tmdbApi.getTVShowAggregateCredits(mediaId);
+
+        // Process TV cast members - handle the different structure
+        if (tvCastData.cast && tvCastData.cast.length > 0) {
+          castMembers = tvCastData.cast.map((member) => {
+            // Use type assertion to tell TypeScript about the expected structure
+            const tvMember = member as {
+              id: number;
+              name: string;
+              roles?: { character: string; episode_count: number }[];
+              total_episode_count?: number;
+              profile_path?: string;
+              popularity?: number;
+              gender?: number;
+              order?: number;
+            };
+
+            // Extract character from roles array or set default
+            const character =
+              tvMember.roles && tvMember.roles.length > 0
+                ? tvMember.roles
+                    .map((role: { character: string }) => role.character)
+                    .join(", ")
+                : "Unknown role";
+
+            return {
+              id: tvMember.id,
+              name: tvMember.name,
+              profile_path: tvMember.profile_path,
+              character,
+              popularity: tvMember.popularity || 0,
+              gender: tvMember.gender,
+              role_type: "cast" as const,
+              // Add TV-specific fields
+              ...(tvMember.total_episode_count
+                ? { total_episode_count: tvMember.total_episode_count }
+                : {}),
+            };
+          });
+        }
+
+        // TV shows' aggregate credits might not have crew in the same way
+        // If you need crew for TV shows, you may need to use a different API call
+      }
+
+      // Combine cast and crew and sort by popularity
+      const combinedResults = [...castMembers, ...crewMembers].sort(
+        (a, b) => (b.popularity || 0) - (a.popularity || 0)
+      );
+
+      if (combinedResults.length === 0) {
+        return {
+          results: [],
+          error: `No cast or crew found for this ${
+            mediaType === "movie" ? "movie" : "TV show"
+          }`,
+        };
+      }
+
+      return {
+        results: combinedResults,
+        error: null,
+      };
+    } catch (err) {
+      console.error(`Error fetching ${mediaType} cast:`, err);
+      return {
+        results: [],
+        error: `Failed to load cast for this ${
+          mediaType === "movie" ? "movie" : "TV show"
+        }`,
+      };
+    }
+  };
+  const setSelectedCastMember2 = async (actor: Person | null) => {
     setSelectedCastMember2Internal(actor);
     try {
       if (actor) {
@@ -814,7 +918,6 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   };
 
   // Function to get actor filmography (both movies and TV shows)
-  // Function to get actor filmography (both movies and TV shows, both cast and crew roles)
   const getActorFilmography = async (
     actor1Id?: number,
     actor2Id?: number,
@@ -1243,7 +1346,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   };
 
   // Function to search for actors
-  const searchActors = async (
+  const searchPeople = async (
     query: string
   ): Promise<{
     results: Actor[];
@@ -1295,11 +1398,10 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     mediaError,
     refreshCastData: fetchCastData,
     getActorFilmography,
-    searchFilms,
-    //searchTVShows,
-    searchActors,
+    searchPeople,
     getMediaItems,
     getCredits,
+    getCast,
   };
 
   // Show a loading state if we're still initializing from AsyncStorage

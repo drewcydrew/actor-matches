@@ -10,9 +10,10 @@ import {
   Modal,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext, SelectedActor } from "../../context/FilmContext";
+import { useFilmContext } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
 import { MediaItem } from "../../types/types"; // Only import MediaItem
+import { Person } from "../../types/types";
 
 // Update props to use MediaItem instead of Film
 interface ActorFilmographyModalProps {
@@ -20,14 +21,14 @@ interface ActorFilmographyModalProps {
   actorName?: string;
   onSelectFilm1: (media: MediaItem) => void;
   onSelectFilm2: (media: MediaItem) => void;
-  onSelectActor1?: (actor: SelectedActor) => void;
-  onSelectActor2?: (actor: SelectedActor) => void;
+  onSelectActor1?: (actor: Person) => void;
+  onSelectActor2?: (actor: Person) => void;
   isVisible: boolean;
   onClose: () => void;
   selectedFilm1?: MediaItem | null;
   selectedFilm2?: MediaItem | null;
-  selectedActor1?: SelectedActor | null;
-  selectedActor2?: SelectedActor | null;
+  selectedActor1?: Person | null;
+  selectedActor2?: Person | null;
   actorProfilePath?: string;
 }
 
@@ -168,7 +169,7 @@ const ActorFilmographyModal = ({
 
   // No changes needed for handleSelectActor
   const handleSelectActor = (option: "actor1" | "actor2") => {
-    const actorData: SelectedActor = {
+    const actorData: Person = {
       id: actorId,
       name: actorName,
       profile_path: actorProfilePath,

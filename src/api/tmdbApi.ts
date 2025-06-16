@@ -2,7 +2,7 @@ import axios from 'axios';
 //import { TMDB_API_KEY } from '@env';
 
 import { ActorSearchResult } from '../types/types';
-import { MovieCredits, ActorCredits, ActorTVCredits, MovieSearchResult, TVShowSearchResult, TVShowCredits, TVShowAggregateCredits } from '../types/types';
+import { MovieCredits, ActorCredits, ActorTVCredits, MovieSearchResult, TVShowSearchResult, TVShowCredits, TVShowAggregateCredits, Person } from '../types/types';
 
 
 
