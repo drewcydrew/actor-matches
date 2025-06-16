@@ -16,6 +16,7 @@ export interface ThemeColors {
   text: string;
   textSecondary: string;
   primary: string;
+  secondary: string;
   border: string;
   error: string;
   headerBackground: string;
@@ -30,6 +31,7 @@ const lightColors: ThemeColors = {
   text: "#000000",
   textSecondary: "#666666",
   primary: "#2196F3",
+  secondary: "#ff0000",
   border: "#dddddd",
   error: "#ff0000",
   headerBackground: "#f5f5f5",
@@ -43,6 +45,7 @@ const darkColors: ThemeColors = {
   text: "#ffffff",
   textSecondary: "#aaaaaa",
   primary: "#4dabf5",
+  secondary: "#ff0000",
   border: "#444444",
   error: "#ff6b6b",
   headerBackground: "#242424",

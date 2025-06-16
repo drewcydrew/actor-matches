@@ -102,6 +102,29 @@ const FilmDisplay = ({
       : "Unknown year";
   };
 
+  // Get media type badge
+  const getMediaTypeBadge = (mediaType: string) => {
+    const isTVShow = mediaType === "tv";
+
+    return (
+      <View
+        style={[
+          styles(colors).mediaTypeBadge,
+          { backgroundColor: isTVShow ? colors.secondary : colors.primary },
+        ]}
+      >
+        <Ionicons
+          name={isTVShow ? "tv-outline" : "film-outline"}
+          size={12}
+          color="#fff"
+        />
+        <Text style={styles(colors).mediaTypeBadgeText}>
+          {isTVShow ? "TV SHOW" : "MOVIE"}
+        </Text>
+      </View>
+    );
+  };
+
   // Get counts for filter badges
   const getMediaCounts = () => {
     if (!commonMedia || commonMedia.length === 0)
@@ -230,11 +253,15 @@ const FilmDisplay = ({
             filteredMedia.map((mediaPair, index) => {
               // Destructure the media pair
               const [media1, media2] = mediaPair;
+              const isTVShow = media1.media_type === "tv";
 
               return (
                 <TouchableOpacity
                   key={`${media1.media_type}-${media1.id}-${index}`}
-                  style={styles(colors).mediaItem}
+                  style={[
+                    styles(colors).mediaItem,
+                    isTVShow ? styles(colors).tvItem : styles(colors).movieItem,
+                  ]}
                   // Pass the first media item to onFilmSelect
                   onPress={() => onFilmSelect && onFilmSelect(media1)}
                   disabled={!onFilmSelect}
@@ -265,9 +292,7 @@ const FilmDisplay = ({
                         <Text style={styles(colors).mediaYear}>
                           {getYear(media1)}
                         </Text>
-                        <Text style={styles(colors).mediaType}>
-                          {media1.media_type === "tv" ? "TV Show" : "Movie"}
-                        </Text>
+                        {getMediaTypeBadge(media1.media_type)}
                       </View>
 
                       {/* Show character info for both actors when in common media mode */}
@@ -320,6 +345,28 @@ const styles = (colors: any) =>
       fontWeight: "bold",
       color: colors.text,
       flex: 1,
+    },
+    // New styles for media type visual indicators
+    mediaTypeBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 10,
+    },
+    mediaTypeBadgeText: {
+      color: "#fff",
+      fontSize: 8,
+      fontWeight: "bold",
+      marginLeft: 2,
+    },
+    movieItem: {
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+    },
+    tvItem: {
+      borderLeftWidth: 3,
+      borderLeftColor: colors.secondary,
     },
     clearButton: {
       flexDirection: "row",
