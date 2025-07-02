@@ -29,9 +29,9 @@ function MainApp() {
   );
 }
 
-// Linking configuration without hardcoded URLs
+// Enhanced linking configuration
 const linking = {
-  prefixes: [], // Empty prefixes means it will work with any domain
+  prefixes: ["https://iamdb.onrender.com", "http://localhost:8081"],
   config: {
     screens: {
       Main: "",
@@ -45,7 +45,10 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <FilmProvider>
-          <NavigationContainer linking={linking}>
+          <NavigationContainer
+            linking={linking}
+            fallback={<Text>Loading...</Text>}
+          >
             <Stack.Navigator
               initialRouteName="Main"
               screenOptions={{
