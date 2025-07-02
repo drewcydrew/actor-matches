@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
@@ -8,7 +8,6 @@ import { FilmProvider } from "./src/context/FilmContext";
 
 import MainScreen from "./src/screens/MainScreen";
 import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
-import UnifiedSplashScreen from "./src/modals/UnifiedSplashScreen";
 
 const Stack = createStackNavigator();
 
@@ -23,18 +22,6 @@ const linking = {
 };
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(true);
-
-  if (showSplash) {
-    return (
-      <UnifiedSplashScreen
-        isVisible={true}
-        onFinish={() => setShowSplash(false)}
-        appName="I Am DB"
-      />
-    );
-  }
-
   return (
     <SafeAreaProvider>
       <ThemeProvider>
