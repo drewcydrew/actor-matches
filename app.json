@@ -28,7 +28,8 @@
       "package": "com.drew92.actormatches"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "webpack"
     },
     "extra": {
       "eas": {
