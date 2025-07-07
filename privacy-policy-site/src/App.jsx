@@ -14,12 +14,12 @@ function App() {
 
       <h2 style={{ color: "#333", marginTop: "24px", marginBottom: "12px" }}>Introduction</h2>
       <p style={{ marginBottom: "16px" }}>
-        Thank you for using Role Call. This Privacy Policy explains how we handle your information when you use our application.
+        Thank you for using Double Bill. This Privacy Policy explains how we handle your information when you use our application.
       </p>
 
       <h2 style={{ color: "#333", marginTop: "24px", marginBottom: "12px" }}>No Data Collection</h2>
       <p style={{ marginBottom: "16px" }}>
-        Role Call does not collect any personal information or usage data from you. All your interactions with the app remain private.
+        Double Bill does not collect any personal information or usage data from you. All your interactions with the app remain private.
       </p>
 
       <h2 style={{ color: "#333", marginTop: "24px", marginBottom: "12px" }}>Third-Party Services</h2>
