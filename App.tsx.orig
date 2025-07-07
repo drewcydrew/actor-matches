@@ -1,0 +1,67 @@
+import React from "react";
+import { Text } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ThemeProvider } from "./src/context/ThemeContext";
+import { FilmProvider } from "./src/context/FilmContext";
+
+import MainScreen from "./src/screens/MainScreen";
+import PrivacyPolicyScreen from "./src/screens/PrivacyPolicyScreen";
+<<<<<<< HEAD
+import UnifiedSplashScreen from "./src/modals/UnifiedSplashScreen";
+import UnifiedSplashScreen from "./src/modals/UnifiedSplashScreen";
+=======
+>>>>>>> origin/main
+
+const Stack = createStackNavigator();
+
+const linking = {
+  prefixes: ["https://iamdb.onrender.com", "http://localhost:8081"],
+  config: {
+    screens: {
+      Main: "",
+      PrivacyPolicy: "PrivacyPolicy",
+    },
+  },
+};
+
+export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return (
+      <UnifiedSplashScreen
+        isVisible={true}
+        onFinish={() => setShowSplash(false)}
+        appName="I Am DB"
+      />
+    );
+  }
+
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <FilmProvider>
+          <NavigationContainer
+            linking={linking}
+            fallback={<Text>Loading...</Text>}
+          >
+            <Stack.Navigator
+              initialRouteName="Main"
+              screenOptions={{
+                headerShown: false,
+              }}
+            >
+              <Stack.Screen name="Main" component={MainScreen} />
+              <Stack.Screen
+                name="PrivacyPolicy"
+                component={PrivacyPolicyScreen}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </FilmProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
