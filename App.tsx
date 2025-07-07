@@ -23,7 +23,7 @@ export default function App() {
           <UnifiedSplashScreen
             isVisible={showSplash}
             onFinish={handleSplashFinish}
-            appName="I Am DB" // Customize the app name
+            appName="Role Call" // Customize the app name
           />
 
           <MainScreen />
