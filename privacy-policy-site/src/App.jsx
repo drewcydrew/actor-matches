@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 import './App.css'
 
 function App() {
   return (
     <div style={{ padding: "2rem", fontFamily: "sans-serif", maxWidth: "800px", margin: "0 auto", lineHeight: "1.6" }}>
-      <h1 style={{ color: "#333", borderBottom: "2px solid #ddd", paddingBottom: "10px" }}>Privacy Policy</h1>
+      <h1 style={{ color: "#333", borderBottom: "2px solid #ddd", paddingBottom: "10px" }}>Double Bill Privacy Policy</h1>
       
       <p style={{ fontSize: "12px", color: "#666", fontStyle: "italic", marginBottom: "20px" }}>
         Last Updated: June 9, 2025
