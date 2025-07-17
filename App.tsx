@@ -3,10 +3,6 @@ import { ThemeProvider } from "./src/context/ThemeContext";
 import { FilmProvider } from "./src/context/FilmContext";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import MainScreen from "./src/screens/MainScreen";
-import SplashScreen from "./src/modals/SplashScreen";
-import GetAppBanner from "./src/modals/GetAppBanner";
-import PrivacyPolicyModal from "./src/modals/PrivacyPolicyModal";
-import UnifiedSplashScreen from "./src/modals/UnifiedSplashScreen";
 
 export default function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -20,12 +16,6 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <FilmProvider>
-          <UnifiedSplashScreen
-            isVisible={showSplash}
-            onFinish={handleSplashFinish}
-            appName="Double Bill" // Customize the app name
-          />
-
           <MainScreen />
         </FilmProvider>
       </ThemeProvider>

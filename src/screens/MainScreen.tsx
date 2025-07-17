@@ -11,6 +11,7 @@ import { useTheme } from "../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FilmComparisonView from "./FilmComparison/FilmComparisonView";
 import ActorComparisonView from "./ActorComparison/ActorComparisonView";
+import AppBanner from "../modals/AppBanner";
 
 // Define comparison modes
 type ComparisonMode = "compareByFilm" | "compareByActor";
@@ -82,6 +83,16 @@ const MainScreen = () => {
 
       {/* Safe area padding for top notch */}
       <View style={styles.safeArea}>
+        {/* Privacy/Install Banner */}
+        <AppBanner
+          appName="Double Bill"
+          appIcon={require("../../assets/icon.png")}
+          privacyPolicyUrl="https://doublebill-privacypolicy.onrender.com/"
+          androidUrl="https://play.google.com/apps/testing/com.drew92.actormatches"
+          androidTestersGroupUrl="https://groups.google.com/g/i-am-db-testers"
+          iosUrl="https://apps.apple.com/us/app/double-bill/id6747002318"
+        />
+
         {/* Mode selector - now inside the safe area */}
         <View style={styles.modeSelector}>
           <TouchableOpacity
