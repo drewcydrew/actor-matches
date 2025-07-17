@@ -91,122 +91,129 @@ const AppBanner = ({
   return (
     <>
       <View style={styles(colors).container}>
-        {/* App Icon */}
-        <View style={styles(colors).iconContainer}>{renderAppIcon()}</View>
+        {/* Header row with icon, content, and close button */}
+        <View style={styles(colors).headerRow}>
+          {/* App Icon */}
+          <View style={styles(colors).iconContainer}>{renderAppIcon()}</View>
 
-        <View style={styles(colors).content}>
-          {Platform.OS === "web" ? (
-            <>
-              <View style={styles(colors).headerSection}>
-                <Text style={styles(colors).title}>{appName}</Text>
-              </View>
-              <Text style={styles(colors).message}>
-                Download on mobile for best experience.
-              </Text>
-              <View style={styles(colors).buttonContainer}>
-                <TouchableOpacity
-                  style={styles(colors).primaryButton}
-                  onPress={handleInstallAndroid}
-                  activeOpacity={0.8}
-                >
+          <View style={styles(colors).content}>
+            {Platform.OS === "web" ? (
+              <>
+                <View style={styles(colors).headerSection}>
+                  <Text style={styles(colors).title}>{appName}</Text>
+                </View>
+                <Text style={styles(colors).message}>
+                  Download on mobile for best experience.
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles(colors).headerSection}>
                   <Ionicons
-                    name="logo-android"
-                    size={16}
-                    color="#fff"
-                    style={styles(colors).buttonIcon}
-                  />
-                  <Text style={styles(colors).primaryButtonText}>Android</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).primaryButton}
-                  onPress={handleInstallIOS}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="logo-apple"
-                    size={16}
-                    color="#fff"
-                    style={styles(colors).buttonIcon}
-                  />
-                  <Text style={styles(colors).primaryButtonText}>iOS</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).secondaryButton}
-                  onPress={handleJoinAndroidBeta}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="people"
-                    size={14}
-                    color="#fff"
-                    style={styles(colors).buttonIcon}
-                  />
-                  <Text style={styles(colors).secondaryButtonText}>
-                    Test Group
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).linkButton}
-                  onPress={handlePrivacyPolicy}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="book"
-                    size={14}
+                    name="information-circle"
+                    size={20}
                     color={colors.primary}
-                    style={styles(colors).buttonIcon}
+                    style={styles(colors).headerIcon}
                   />
-                  <Text style={styles(colors).linkButtonText}>
-                    Privacy Policy
+                  <Text style={styles(colors).title}>
+                    Welcome to {appName}!
                   </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <View style={styles(colors).headerSection}>
-                <Ionicons
-                  name="information-circle"
-                  size={20}
-                  color={colors.primary}
-                  style={styles(colors).headerIcon}
-                />
-                <Text style={styles(colors).title}>Welcome to {appName}!</Text>
-              </View>
-              <Text style={styles(colors).message}>
-                Your privacy matters to us. Check out our privacy policy below.
-              </Text>
-              <View style={styles(colors).buttonContainer}>
-                <TouchableOpacity
-                  style={styles(colors).linkButton}
-                  onPress={handlePrivacyPolicy}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name="book"
-                    size={14}
-                    color={colors.primary}
-                    style={styles(colors).buttonIcon}
-                  />
-                  <Text style={styles(colors).linkButtonText}>
-                    Privacy Policy
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
+                </View>
+                <Text style={styles(colors).message}>
+                  Your privacy matters to us. Check out our privacy policy
+                  below.
+                </Text>
+              </>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles(colors).closeButton}
+            onPress={handleDismiss}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="close" size={20} color={colors.text} />
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles(colors).closeButton}
-          onPress={handleDismiss}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="close" size={20} color={colors.text} />
-        </TouchableOpacity>
+        {/* Full-width button row */}
+        {Platform.OS === "web" ? (
+          <View style={styles(colors).fullWidthButtonContainer}>
+            <TouchableOpacity
+              style={styles(colors).mobileButton}
+              onPress={handleInstallAndroid}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="logo-android"
+                size={16}
+                color="#fff"
+                style={styles(colors).buttonIcon}
+              />
+              <Text style={styles(colors).mobileButtonText}>Android</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles(colors).mobileButton}
+              onPress={handleInstallIOS}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="logo-apple"
+                size={16}
+                color="#fff"
+                style={styles(colors).buttonIcon}
+              />
+              <Text style={styles(colors).mobileButtonText}>iOS</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles(colors).mobileSecondaryButton}
+              onPress={handleJoinAndroidBeta}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="people"
+                size={14}
+                color="#fff"
+                style={styles(colors).buttonIcon}
+              />
+              <Text style={styles(colors).mobileButtonText}>Beta</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles(colors).mobileLinkButton}
+              onPress={handlePrivacyPolicy}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="book"
+                size={14}
+                color={colors.primary}
+                style={styles(colors).buttonIcon}
+              />
+              <Text style={styles(colors).mobileLinkButtonText}>Policy</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles(colors).fullWidthButtonContainer}>
+            <TouchableOpacity
+              style={styles(colors).mobileLinkButton}
+              onPress={handlePrivacyPolicy}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="book"
+                size={14}
+                color={colors.primary}
+                style={styles(colors).buttonIcon}
+              />
+              <Text style={styles(colors).mobileLinkButtonText}>
+                Privacy Policy
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Android Beta Warning Modal */}
@@ -282,9 +289,6 @@ const styles = (colors: any) =>
       marginHorizontal: 8,
       marginVertical: 4,
       borderRadius: 12,
-      flexDirection: "row",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
       borderWidth: 1,
       borderColor: colors.border,
       shadowColor: "#000",
@@ -292,6 +296,11 @@ const styles = (colors: any) =>
       shadowOpacity: 0.1,
       shadowRadius: 4,
       elevation: 3,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
     },
     iconContainer: {
       padding: 12,
@@ -342,50 +351,54 @@ const styles = (colors: any) =>
       flexWrap: "wrap",
       gap: 8,
     },
-    primaryButton: {
+    fullWidthButtonContainer: {
+      flexDirection: "row",
+      paddingHorizontal: 12,
+      paddingBottom: 12,
+      gap: 4,
+    },
+    mobileButton: {
+      flex: 1,
       backgroundColor: colors.primary,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "center",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
       elevation: 2,
     },
-    primaryButtonText: {
-      color: "#fff",
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    secondaryButton: {
+    mobileSecondaryButton: {
+      flex: 1,
       backgroundColor: "#dc3545",
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "center",
     },
-    secondaryButtonText: {
-      color: "#fff",
-      fontSize: 14,
-      fontWeight: "500",
-    },
-    linkButton: {
+    mobileLinkButton: {
+      flex: 1,
       backgroundColor: "transparent",
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 20,
+      paddingVertical: 12,
+      borderRadius: 8,
       borderWidth: 1,
       borderColor: colors.primary,
       flexDirection: "row",
       alignItems: "center",
+      justifyContent: "center",
     },
-    linkButtonText: {
+    mobileButtonText: {
+      color: "#fff",
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    mobileLinkButtonText: {
       color: colors.primary,
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: "500",
     },
     buttonIcon: {
