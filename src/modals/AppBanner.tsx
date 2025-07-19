@@ -19,27 +19,38 @@ interface AppBannerProps {
   androidUrl: string;
   androidTestersGroupUrl: string;
   iosUrl: string;
+  // Optional styling props for customization
+  accentColor?: string;
+  textColor?: string;
+  backgroundColor?: string;
+  borderColor?: string;
 }
 
 const AppBanner = ({
-  appName = "Double Bill",
+  appName = "App Name",
   appIcon,
   privacyPolicyUrl,
   androidUrl,
   androidTestersGroupUrl,
   iosUrl,
+  accentColor = "#007AFF",
+  textColor,
+  backgroundColor,
+  borderColor,
 }: AppBannerProps) => {
   const colorScheme = useColorScheme();
   const [isSessionDismissed, setIsSessionDismissed] = useState(false);
   const [showAndroidModal, setShowAndroidModal] = useState(false);
 
+  // Neutral color scheme with optional overrides
   const colors = {
-    primary: "#007AFF",
-    surface: colorScheme === "dark" ? "#1C1C1E" : "#FFFFFF",
-    background: colorScheme === "dark" ? "#000000" : "#F2F2F7",
-    border: colorScheme === "dark" ? "#38383A" : "#E5E5EA",
-    text: colorScheme === "dark" ? "#FFFFFF" : "#000000",
-    textSecondary: colorScheme === "dark" ? "#8E8E93" : "#6D6D70",
+    primary: accentColor,
+    surface: backgroundColor || "rgba(255, 255, 255, 0.1)",
+    background: "rgba(128, 128, 128, 0.1)",
+    border: borderColor || "rgba(128, 128, 128, 0.2)",
+    text: textColor || (colorScheme === "dark" ? "#FFFFFF" : "#000000"),
+    textSecondary:
+      textColor || (colorScheme === "dark" ? "#CCCCCC" : "#666666"),
   };
 
   const handleDismiss = () => {
@@ -87,10 +98,13 @@ const AppBanner = ({
         <View
           style={[
             styles.iconFallback,
-            { backgroundColor: colors.background, borderColor: colors.border },
+            {
+              backgroundColor: colors.background,
+              borderColor: colors.border,
+            },
           ]}
         >
-          <Ionicons name="film" size={24} color={colors.primary} />
+          <Ionicons name="apps-outline" size={24} color={colors.primary} />
         </View>
       );
     }
@@ -98,149 +112,186 @@ const AppBanner = ({
 
   return (
     <>
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
-      >
-        {/* Header row with icon, content, and close button */}
-        <View style={styles.headerRow}>
-          {/* App Icon */}
-          <View style={styles.iconContainer}>{renderAppIcon()}</View>
+      <View style={styles.overlayContainer}>
+        <View
+          style={[
+            styles.container,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          {/* Header row with icon, content, and close button */}
+          <View style={styles.headerRow}>
+            {/* App Icon */}
+            <View style={styles.iconContainer}>{renderAppIcon()}</View>
 
-          <View style={styles.content}>
-            {Platform.OS === "web" ? (
-              <>
-                <View style={styles.headerSection}>
-                  <Text style={[styles.title, { color: colors.text }]}>
-                    {appName}
+            <View style={styles.content}>
+              {Platform.OS === "web" ? (
+                <>
+                  <View style={styles.headerSection}>
+                    <Text style={[styles.title, { color: colors.text }]}>
+                      {appName}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.message, { color: colors.textSecondary }]}
+                  >
+                    Available on mobile platforms
                   </Text>
-                </View>
-                <Text style={[styles.message, { color: colors.textSecondary }]}>
-                  Download on mobile for best experience.
-                </Text>
-              </>
-            ) : (
-              <>
-                <View style={styles.headerSection}>
-                  <Ionicons
-                    name="information-circle"
-                    size={20}
-                    color={colors.primary}
-                    style={styles.headerIcon}
-                  />
-                  <Text style={[styles.title, { color: colors.text }]}>
-                    Welcome to {appName}!
+                </>
+              ) : (
+                <>
+                  <View style={styles.headerSection}>
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={18}
+                      color={colors.primary}
+                      style={styles.headerIcon}
+                    />
+                    <Text style={[styles.title, { color: colors.text }]}>
+                      {appName}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.message, { color: colors.textSecondary }]}
+                  >
+                    Thank you for using this app! Privacy Policy and User Guide
+                    available online.
                   </Text>
-                </View>
-                <Text style={[styles.message, { color: colors.textSecondary }]}>
-                  Your privacy matters to us. Check out our privacy policy
-                  below.
-                </Text>
-              </>
-            )}
+                </>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.closeButton,
+                {
+                  backgroundColor: colors.background,
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={handleDismiss}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="close" size={18} color={colors.text} />
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity
-            style={[
-              styles.closeButton,
-              {
-                backgroundColor: colors.background,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={handleDismiss}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="close" size={20} color={colors.text} />
-          </TouchableOpacity>
+          {/* Full-width button row */}
+          {Platform.OS === "web" ? (
+            <View style={styles.fullWidthButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.mobileButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleInstallAndroid}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="logo-android"
+                  size={14}
+                  color="#fff"
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.mobileButtonText}>Android</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.mobileButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={handleInstallIOS}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="logo-apple"
+                  size={14}
+                  color="#fff"
+                  style={styles.buttonIcon}
+                />
+                <Text style={styles.mobileButtonText}>iOS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.mobileLinkButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+                onPress={handleJoinAndroidBeta}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="people-outline"
+                  size={12}
+                  color={colors.text}
+                  style={styles.buttonIcon}
+                />
+                <Text
+                  style={[styles.mobileLinkButtonText, { color: colors.text }]}
+                >
+                  Beta
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.mobileLinkButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+                onPress={handlePrivacyPolicy}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={12}
+                  color={colors.text}
+                  style={styles.buttonIcon}
+                />
+                <Text
+                  style={[styles.mobileLinkButtonText, { color: colors.text }]}
+                >
+                  Policy
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.fullWidthButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.mobileLinkButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+                onPress={handlePrivacyPolicy}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={12}
+                  color={colors.text}
+                  style={styles.buttonIcon}
+                />
+                <Text
+                  style={[styles.mobileLinkButtonText, { color: colors.text }]}
+                >
+                  Privacy Policy / User Guide
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
-
-        {/* Full-width button row */}
-        {Platform.OS === "web" ? (
-          <View style={styles.fullWidthButtonContainer}>
-            <TouchableOpacity
-              style={[styles.mobileButton, { backgroundColor: colors.primary }]}
-              onPress={handleInstallAndroid}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="logo-android"
-                size={16}
-                color="#fff"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.mobileButtonText}>Android</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.mobileButton, { backgroundColor: colors.primary }]}
-              onPress={handleInstallIOS}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="logo-apple"
-                size={16}
-                color="#fff"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.mobileButtonText}>iOS</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.mobileSecondaryButton}
-              onPress={handleJoinAndroidBeta}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="people"
-                size={14}
-                color="#fff"
-                style={styles.buttonIcon}
-              />
-              <Text style={styles.mobileButtonText}>Beta</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.mobileLinkButton, { borderColor: colors.primary }]}
-              onPress={handlePrivacyPolicy}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="book"
-                size={14}
-                color={colors.primary}
-                style={styles.buttonIcon}
-              />
-              <Text
-                style={[styles.mobileLinkButtonText, { color: colors.primary }]}
-              >
-                Policy
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.fullWidthButtonContainer}>
-            <TouchableOpacity
-              style={[styles.mobileLinkButton, { borderColor: colors.primary }]}
-              onPress={handlePrivacyPolicy}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="book"
-                size={14}
-                color={colors.primary}
-                style={styles.buttonIcon}
-              />
-              <Text
-                style={[styles.mobileLinkButtonText, { color: colors.primary }]}
-              >
-                Privacy Policy
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
       </View>
 
       {/* Android Beta Warning Modal */}
@@ -254,25 +305,28 @@ const AppBanner = ({
           <View
             style={[
               styles.modalContainer,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              {
+                backgroundColor: colorScheme === "dark" ? "#1C1C1E" : "#FFFFFF",
+                borderColor: colors.border,
+              },
             ]}
           >
             <View style={styles.modalHeader}>
               <Ionicons
-                name="warning"
+                name="warning-outline"
                 size={24}
-                color="#dc3545"
+                color={colors.primary}
                 style={styles.modalIcon}
               />
               <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Android Beta Required
+                Beta Access Required
               </Text>
             </View>
 
             <Text
               style={[styles.modalMessage, { color: colors.textSecondary }]}
             >
-              To install the Android app, you must first join our beta testing
+              To install the Android app, you must first join the beta testing
               group.
             </Text>
 
@@ -295,12 +349,23 @@ const AppBanner = ({
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.modalSecondaryButton}
+                style={[
+                  styles.modalSecondaryButton,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.border,
+                  },
+                ]}
                 onPress={handleJoinBetaGroup}
                 activeOpacity={0.8}
               >
-                <Text style={styles.modalSecondaryButtonText}>
-                  No, Join Group Now
+                <Text
+                  style={[
+                    styles.modalSecondaryButtonText,
+                    { color: colors.text },
+                  ]}
+                >
+                  No, Join Group
                 </Text>
               </TouchableOpacity>
 
@@ -330,16 +395,25 @@ const AppBanner = ({
 };
 
 const styles = StyleSheet.create({
+  overlayContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingTop: Platform.OS === "ios" ? 44 : 24,
+  },
   container: {
     marginHorizontal: 8,
     marginVertical: 4,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
+    // Minimal shadow for subtlety
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowRadius: 2,
+    elevation: 2,
   },
   headerRow: {
     flexDirection: "row",
@@ -347,82 +421,62 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   iconContainer: {
-    padding: 12,
-    paddingRight: 8,
+    padding: 10,
+    paddingRight: 6,
   },
   appIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 6,
   },
   iconFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
   },
   content: {
     flex: 1,
-    padding: 16,
-    paddingLeft: 8,
+    padding: 10,
+    paddingLeft: 6,
   },
   headerSection: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   headerIcon: {
-    marginRight: 8,
+    marginRight: 6,
   },
   title: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "500",
   },
   message: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+    fontSize: 11,
+    lineHeight: 14,
+    marginBottom: 6,
   },
   fullWidthButtonContainer: {
     flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    gap: 4,
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+    gap: 6,
   },
   mobileButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  mobileSecondaryButton: {
-    flex: 1,
-    backgroundColor: "#dc3545",
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
   },
   mobileLinkButton: {
     flex: 1,
-    backgroundColor: "transparent",
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 6,
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -430,23 +484,23 @@ const styles = StyleSheet.create({
   },
   mobileButtonText: {
     color: "#fff",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  mobileLinkButtonText: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "500",
   },
+  mobileLinkButtonText: {
+    fontSize: 10,
+    fontWeight: "400",
+  },
   buttonIcon: {
-    marginRight: 6,
+    marginRight: 3,
   },
   closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
-    margin: 8,
+    margin: 6,
     borderWidth: 1,
   },
   // Modal styles
@@ -458,7 +512,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    borderRadius: 16,
+    borderRadius: 12,
     padding: 20,
     width: "100%",
     maxWidth: 400,
@@ -501,16 +555,15 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   modalSecondaryButton: {
-    backgroundColor: "#dc3545",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: "center",
+    borderWidth: 1,
   },
   modalSecondaryButtonText: {
-    color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   modalCancelButton: {
     backgroundColor: "transparent",
@@ -522,7 +575,7 @@ const styles = StyleSheet.create({
   },
   modalCancelButtonText: {
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "400",
   },
 });
 
