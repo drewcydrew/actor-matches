@@ -81,9 +81,16 @@ const MainScreen = () => {
       {/* Render the status bar with correct style */}
       <StatusBar style={theme === "dark" ? "light" : "dark"} />
 
-      {/* Safe area padding for top notch */}
-      <View style={styles.safeArea}>
-        {/* Privacy/Install Banner */}
+      {/* Privacy/Install Banner - positioned absolutely on top */}
+      <View
+        style={{
+          position: "absolute",
+          top: insets.top,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+        }}
+      >
         <AppBanner
           appName="Double Bill"
           appIcon={require("../../assets/icon.png")}
@@ -91,8 +98,15 @@ const MainScreen = () => {
           androidUrl="https://play.google.com/apps/testing/com.drew92.actormatches"
           androidTestersGroupUrl="https://groups.google.com/g/i-am-db-testers"
           iosUrl="https://apps.apple.com/us/app/double-bill/id6747002318"
+          backgroundColor="#000000ff"
+          borderColor="#ffffffff"
+          accentColor="#4e6ae7ff"
+          textColor="#ffffff"
         />
+      </View>
 
+      {/* Safe area padding for top notch */}
+      <View style={styles.safeArea}>
         {/* Mode selector - now inside the safe area */}
         <View style={styles.modeSelector}>
           <TouchableOpacity
