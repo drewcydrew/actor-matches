@@ -13,8 +13,8 @@ export interface Person {
   //order?: number;
 
   // Crew-specific properties (optional for cast)
-  job?: string;
-  department?: string;
+  jobs?: string[];
+  departments?: string[];
 }
 
 export interface BaseMediaItem {

@@ -288,42 +288,32 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                         displayMode === "comparison" ? (
                           <>
                             <Text style={styles(colors).department}>
-                              {person1.department || "Crew"}
+                              {person1.departments?.join(", ") || "Crew"}
                             </Text>
                             <Text style={styles(colors).character}>
                               {`in "${selectedMediaItem1?.name}": ${
-                                person1.job || "Unknown job"
+                                person1.jobs?.join(", ") || "Unknown job"
                               }`}
                             </Text>
                             <Text style={styles(colors).character}>
                               {`in "${selectedMediaItem2?.name}": ${
-                                person2.job || "Unknown job"
+                                person2.jobs?.join(", ") || "Unknown job"
                               }`}
                             </Text>
                           </>
                         ) : (
                           <View>
                             <Text style={styles(colors).department}>
-                              {person1.department || "Crew"}
+                              {person1.departments?.join(", ") || "Crew"}
                             </Text>
-                            <Text style={styles(colors).character}>
-                              {person1.job || "Unknown job"}
+                            <Text
+                              style={styles(colors).character}
+                              numberOfLines={2}
+                            >
+                              {person1.jobs?.join(", ") || "Unknown job"}
                             </Text>
                           </View>
                         )
-                      ) : displayMode === "comparison" ? (
-                        <>
-                          <Text style={styles(colors).character}>
-                            {`in "${selectedMediaItem1?.name}": ${
-                              person1.character || "Unknown role"
-                            }`}
-                          </Text>
-                          <Text style={styles(colors).character}>
-                            {`in "${selectedMediaItem2?.name}": ${
-                              person2.character || "Unknown role"
-                            }`}
-                          </Text>
-                        </>
                       ) : (
                         <Text style={styles(colors).character}>
                           {`as: ${person1.character || "Unknown role"}`}

@@ -363,16 +363,43 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         // Process movie crew members
         if (movieCastData.crew && movieCastData.crew.length > 0) {
-          crewMembers = movieCastData.crew.map((member) => ({
-            id: member.id,
-            name: member.name,
-            profile_path: member.profile_path,
-            job: member.job || "Unknown job",
-            department: member.department || "Other",
-            popularity: member.popularity || 0,
-            gender: member.gender,
-            role_type: "crew" as const,
-          }));
+          // Group crew members by person ID
+          const crewByPerson = new Map<
+            number,
+            {
+              person: any;
+              jobs: string[];
+              departments: Set<string>;
+            }
+          >();
+
+          movieCastData.crew.forEach((member) => {
+            if (!crewByPerson.has(member.id)) {
+              crewByPerson.set(member.id, {
+                person: member,
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const crewData = crewByPerson.get(member.id)!;
+            crewData.jobs.push(member.job || "Unknown job");
+            crewData.departments.add(member.department || "Other");
+          });
+
+          // Convert grouped crew data to Person objects
+          crewMembers = Array.from(crewByPerson.values()).map(
+            ({ person, jobs, departments }) => ({
+              id: person.id,
+              name: person.name,
+              profile_path: person.profile_path,
+              jobs: jobs,
+              departments: Array.from(departments),
+              popularity: person.popularity || 0,
+              gender: person.gender,
+              role_type: "crew" as const,
+            })
+          );
         }
       } else {
         // For TV shows, use getTVShowAggregateCredits
