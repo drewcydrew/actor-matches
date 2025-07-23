@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -58,7 +58,6 @@ const ActorFilmographyModal = ({
   const { colors } = useTheme();
   const { getCredits } = useFilmContext();
 
-  const [mediaItems, setMediaItems] = useState<ExtendedMediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedItem, setSelectedItem] = useState<ExtendedMediaItem | null>(
@@ -80,9 +79,32 @@ const ActorFilmographyModal = ({
     }
   }, [actorId, isVisible]);
 
-  useEffect(() => {
-    filterMediaByType();
-  }, [mediaType, allCredits]);
+  // Memoize filtered media items
+  const mediaItems = useMemo(() => {
+    if (allCredits.length === 0) {
+      return [];
+    }
+
+    let filtered: ExtendedMediaItem[];
+
+    if (mediaType === "all") {
+      filtered = [...allCredits];
+    } else if (mediaType === "movies") {
+      filtered = allCredits.filter((item) => item.media_type === "movie");
+    } else {
+      filtered = allCredits.filter((item) => item.media_type === "tv");
+    }
+
+    if (filtered.length === 0) {
+      setError(
+        `No ${mediaType === "all" ? "media" : mediaType} found for this person`
+      );
+    } else {
+      setError("");
+    }
+
+    return filtered;
+  }, [allCredits, mediaType]);
 
   // No changes needed for fetchActorCredits
   const fetchActorCredits = async () => {
@@ -112,53 +134,29 @@ const ActorFilmographyModal = ({
     }
   };
 
-  // No changes needed for filterMediaByType
-  const filterMediaByType = () => {
-    if (allCredits.length === 0) {
-      return;
-    }
-
-    let filtered: ExtendedMediaItem[];
-
-    if (mediaType === "all") {
-      filtered = [...allCredits];
-    } else if (mediaType === "movies") {
-      filtered = allCredits.filter((item) => item.media_type === "movie");
-    } else {
-      filtered = allCredits.filter((item) => item.media_type === "tv");
-    }
-
-    if (filtered.length === 0) {
-      setError(
-        `No ${mediaType === "all" ? "media" : mediaType} found for this person`
-      );
-    } else {
-      setError("");
-    }
-
-    setMediaItems(filtered);
-  };
-
-  const handleItemPress = (item: ExtendedMediaItem) => {
+  const handleItemPress = useCallback((item: ExtendedMediaItem) => {
     setSelectedItem(item);
     setShowItemOptions(true);
-  };
+  }, []);
 
   // Simplified - no longer converting TV shows to Film
-  const handleSelectOption = (option: "film1" | "film2") => {
-    if (selectedItem) {
-      // Pass the MediaItem directly without conversion
-      if (option === "film1") {
-        onSelectFilm1(selectedItem);
-      } else {
-        onSelectFilm2(selectedItem);
+  const handleSelectOption = useCallback(
+    (option: "film1" | "film2") => {
+      if (selectedItem) {
+        // Pass the MediaItem directly without conversion
+        if (option === "film1") {
+          onSelectFilm1(selectedItem);
+        } else {
+          onSelectFilm2(selectedItem);
+        }
+        // Close modal and reset states
+        onClose();
+        setShowItemOptions(false);
+        setSelectedItem(null);
       }
-      // Close modal and reset states
-      onClose();
-      setShowItemOptions(false);
-      setSelectedItem(null);
-    }
-  };
+    },
+    [selectedItem, onSelectFilm1, onSelectFilm2, onClose]
+  );
 
   const handleCloseModal = () => {
     onClose();
@@ -188,91 +186,101 @@ const ActorFilmographyModal = ({
     setShowActorOptions(true);
   };
 
+  // Memoize key extractor
+  const keyExtractor = useCallback((item: ExtendedMediaItem, index: number) => {
+    return `${item.media_type}-${item.id}-${item.role_type || "cast"}-${
+      item.character?.substring(0, 10) || ""
+    }-${index}`;
+  }, []);
+
   // Updated to handle MediaItem consistently
-  const renderMediaItem = ({ item }: { item: ExtendedMediaItem }) => {
-    const isMovie = item.media_type === "movie";
-    // Use the correct property based on media type
-    const title = isMovie ? item.title : item.name;
-    const releaseDate = isMovie ? item.release_date : item.first_air_date;
-    const year = releaseDate
-      ? new Date(releaseDate).getFullYear().toString()
-      : "Unknown";
+  const renderMediaItem = useCallback(
+    ({ item }: { item: ExtendedMediaItem }) => {
+      const isMovie = item.media_type === "movie";
+      // Use the correct property based on media type
+      const title = isMovie ? item.title : item.name;
+      const releaseDate = isMovie ? item.release_date : item.first_air_date;
+      const year = releaseDate
+        ? new Date(releaseDate).getFullYear().toString()
+        : "Unknown";
+      const isCrew = item.role_type === "crew";
 
-    // Check if it's a crew credit
-    const isCrew = item.role_type === "crew";
-
-    return (
-      <TouchableOpacity
-        style={[
-          styles(colors).filmItem,
-          selectedItem?.id === item.id ? styles(colors).selectedFilmItem : null,
-          selectedFilm1?.id === item.id ? styles(colors).film1Item : null,
-          selectedFilm2?.id === item.id ? styles(colors).film2Item : null,
-        ]}
-        onPress={() => handleItemPress(item)}
-        activeOpacity={0.7}
-      >
-        {item.poster_path && (
-          <Image
-            source={{
-              uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
-            }}
-            style={styles(colors).poster}
-          />
-        )}
-        <View style={styles(colors).filmDetails}>
-          <Text style={styles(colors).filmTitle}>{title || "Untitled"}</Text>
-          <View style={styles(colors).mediaTypeContainer}>
-            <Text style={styles(colors).filmYear}>{year}</Text>
-            <Text style={styles(colors).mediaTypeLabel}>
-              {isMovie ? "Movie" : "TV"}
-            </Text>
-          </View>
-
-          {/* Show different text based on whether it's cast or crew */}
-          {isCrew ? (
-            <View>
-              <Text style={styles(colors).department}>
-                {item.department || "Crew"}
-              </Text>
-              <Text style={styles(colors).character}>
-                {item.character || "Unknown role"}
+      return (
+        <TouchableOpacity
+          style={[
+            styles(colors).filmItem,
+            selectedItem?.id === item.id
+              ? styles(colors).selectedFilmItem
+              : null,
+            selectedFilm1?.id === item.id ? styles(colors).film1Item : null,
+            selectedFilm2?.id === item.id ? styles(colors).film2Item : null,
+          ]}
+          onPress={() => handleItemPress(item)}
+          activeOpacity={0.7}
+        >
+          {item.poster_path && (
+            <Image
+              source={{
+                uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
+              }}
+              style={styles(colors).poster}
+            />
+          )}
+          <View style={styles(colors).filmDetails}>
+            <Text style={styles(colors).filmTitle}>{title || "Untitled"}</Text>
+            <View style={styles(colors).mediaTypeContainer}>
+              <Text style={styles(colors).filmYear}>{year}</Text>
+              <Text style={styles(colors).mediaTypeLabel}>
+                {isMovie ? "Movie" : "TV"}
               </Text>
             </View>
-          ) : item.character ? (
-            <Text style={styles(colors).character}>as {item.character}</Text>
-          ) : null}
 
-          {/* Handle TV show episode count */}
-          {!isMovie && item.episode_count && !isCrew && (
-            <Text style={styles(colors).episodeCount}>
-              {item.episode_count} episode
-              {item.episode_count !== 1 ? "s" : ""}
-            </Text>
+            {/* Show different text based on whether it's cast or crew */}
+            {isCrew ? (
+              <View>
+                <Text style={styles(colors).department}>
+                  {item.department || "Crew"}
+                </Text>
+                <Text style={styles(colors).character}>
+                  {item.character || "Unknown role"}
+                </Text>
+              </View>
+            ) : item.character ? (
+              <Text style={styles(colors).character}>as {item.character}</Text>
+            ) : null}
+
+            {/* Handle TV show episode count */}
+            {!isMovie && item.episode_count && !isCrew && (
+              <Text style={styles(colors).episodeCount}>
+                {item.episode_count} episode
+                {item.episode_count !== 1 ? "s" : ""}
+              </Text>
+            )}
+          </View>
+
+          {/* Indicator labels */}
+          {selectedFilm1?.id === item.id && (
+            <View style={styles(colors).filmIndicator}>
+              <Text style={styles(colors).indicatorText}>Film 1</Text>
+            </View>
           )}
-        </View>
-
-        {/* Indicator labels */}
-        {selectedFilm1?.id === item.id && (
-          <View style={styles(colors).filmIndicator}>
-            <Text style={styles(colors).indicatorText}>Film 1</Text>
-          </View>
-        )}
-        {selectedFilm2?.id === item.id && (
-          <View
-            style={[
-              styles(colors).filmIndicator,
-              {
-                backgroundColor: colors.primary || colors.primary || "orange",
-              },
-            ]}
-          >
-            <Text style={styles(colors).indicatorText}>Film 2</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
+          {selectedFilm2?.id === item.id && (
+            <View
+              style={[
+                styles(colors).filmIndicator,
+                {
+                  backgroundColor: colors.primary || colors.primary || "orange",
+                },
+              ]}
+            >
+              <Text style={styles(colors).indicatorText}>Film 2</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    },
+    [colors, selectedItem, selectedFilm1, selectedFilm2, handleItemPress]
+  );
 
   // Updated to use MediaItem properties
   const getMediaTitle = (media: MediaItem): string => {
@@ -380,11 +388,12 @@ const ActorFilmographyModal = ({
               <FlatList
                 data={mediaItems}
                 renderItem={renderMediaItem}
-                keyExtractor={(item, index) =>
-                  `${item.media_type}-${item.id}-${item.role_type || "cast"}-${
-                    item.character?.substring(0, 10) || ""
-                  }-${index}`
-                }
+                keyExtractor={keyExtractor}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={15}
+                updateCellsBatchingPeriod={50}
+                initialNumToRender={15}
+                windowSize={10}
                 ListEmptyComponent={
                   <Text style={styles(colors).emptyText}>No credits found</Text>
                 }

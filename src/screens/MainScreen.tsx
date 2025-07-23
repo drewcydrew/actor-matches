@@ -1,11 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  ScrollView,
-  Text,
-} from "react-native";
+import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
 import React, { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,8 +32,8 @@ const MainScreen = () => {
       paddingTop: insets.top,
       backgroundColor: colors.surface,
     },
-    scrollContent: {
-      flexGrow: 1,
+    contentContainer: {
+      flex: 1,
       paddingBottom: insets.bottom,
       paddingLeft: insets.left,
       paddingRight: insets.right,
@@ -153,19 +147,15 @@ const MainScreen = () => {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        bounces={true}
-        showsVerticalScrollIndicator={true}
-        nestedScrollEnabled={true}
-      >
+      {/* Content container - removed ScrollView, using View instead */}
+      <View style={styles.contentContainer}>
         {/* Render content based on selected mode */}
         {comparisonMode === "compareByFilm" ? (
           <FilmComparisonView />
         ) : (
           <ActorComparisonView />
         )}
-      </ScrollView>
+      </View>
     </View>
   );
 };

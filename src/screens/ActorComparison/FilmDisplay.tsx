@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Image,
   TouchableOpacity,
+  FlatList,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext"; // Remove the convertCommonMediaToMediaItem import
@@ -40,39 +41,154 @@ const FilmDisplay = ({
     setSelectedCastMember2,
   } = useFilmContext();
 
-  // Update state type to match the new 2D array structure
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
-  const [filteredMedia, setFilteredMedia] = useState<[MediaItem, MediaItem][]>(
-    []
-  );
 
-  // Add function to clear both actors
-  const handleClearActors = () => {
-    setSelectedCastMember1(null);
-    setSelectedCastMember2(null);
-  };
-
-  // Apply filtering when commonMedia or filterMode changes
-  useEffect(() => {
+  // Memoize filtered media to avoid recalculating on every render
+  const filteredMedia = useMemo(() => {
     if (!commonMedia || commonMedia.length === 0) {
-      setFilteredMedia([]);
-      return;
+      return [];
     }
 
     if (filterMode === "all") {
-      setFilteredMedia(commonMedia);
+      return commonMedia;
     } else if (filterMode === "movies") {
-      // Filter based on the first item in each pair
-      setFilteredMedia(
-        commonMedia.filter((pair) => pair[0].media_type === "movie")
-      );
+      return commonMedia.filter((pair) => pair[0].media_type === "movie");
     } else if (filterMode === "tv") {
-      // Filter based on the first item in each pair
-      setFilteredMedia(
-        commonMedia.filter((pair) => pair[0].media_type === "tv")
-      );
+      return commonMedia.filter((pair) => pair[0].media_type === "tv");
     }
+    return [];
   }, [commonMedia, filterMode]);
+
+  // Memoize media counts
+  const mediaCounts = useMemo(() => {
+    if (!commonMedia || commonMedia.length === 0)
+      return { movies: 0, tv: 0, all: 0 };
+
+    const movies = commonMedia.filter(
+      (pair) => pair[0].media_type === "movie"
+    ).length;
+    const tv = commonMedia.filter((pair) => pair[0].media_type === "tv").length;
+
+    return {
+      movies,
+      tv,
+      all: movies + tv,
+    };
+  }, [commonMedia]);
+
+  // Memoize callbacks
+  const handleClearActors = useCallback(() => {
+    setSelectedCastMember1(null);
+    setSelectedCastMember2(null);
+  }, [setSelectedCastMember1, setSelectedCastMember2]);
+
+  const handleFilterChange = useCallback((mode: FilterMode) => {
+    setFilterMode(mode);
+  }, []);
+
+  const handleMediaPress = useCallback(
+    (media: MediaItem) => {
+      if (onFilmSelect) {
+        onFilmSelect(media);
+      }
+    },
+    [onFilmSelect]
+  );
+
+  // Memoize helper functions
+  const getYear = useCallback((media: MediaItem): string => {
+    if (media.media_type === "tv") {
+      return media.first_air_date
+        ? new Date(media.first_air_date).getFullYear().toString()
+        : "Unknown year";
+    }
+
+    return media.release_date
+      ? new Date(media.release_date).getFullYear().toString()
+      : "Unknown year";
+  }, []);
+
+  // Memoize key extractor
+  const keyExtractor = useCallback(
+    (item: [MediaItem, MediaItem], index: number) => {
+      return `${item[0].media_type}-${item[0].id}-${
+        item[0].role_type || "cast"
+      }-${index}`;
+    },
+    []
+  );
+
+  // Memoize render item function
+  const renderMediaItem = useCallback(
+    ({ item, index }: { item: [MediaItem, MediaItem]; index: number }) => {
+      const [media1, media2] = item;
+      const isTVShow = media1.media_type === "tv";
+      const title = media1.media_type === "movie" ? media1.title : media1.name;
+      const year = getYear(media1);
+
+      return (
+        <TouchableOpacity
+          style={[
+            styles(colors).mediaItem,
+            isTVShow ? styles(colors).tvItem : styles(colors).movieItem,
+          ]}
+          onPress={() => handleMediaPress(media1)}
+          disabled={!onFilmSelect}
+          activeOpacity={onFilmSelect ? 0.7 : 1}
+        >
+          <View style={styles(colors).mediaItemContent}>
+            {media1.poster_path ? (
+              <Image
+                source={{
+                  uri: `https://image.tmdb.org/t/p/w92${media1.poster_path}`,
+                }}
+                style={styles(colors).poster}
+              />
+            ) : (
+              <View style={styles(colors).noImagePlaceholder}>
+                <Text style={styles(colors).noImageText}>No Poster</Text>
+              </View>
+            )}
+            <View style={styles(colors).mediaInfo}>
+              <Text style={styles(colors).mediaTitle}>
+                {title || "Untitled"}
+              </Text>
+              <View style={styles(colors).mediaMetadata}>
+                <Text style={styles(colors).mediaYear}>{year}</Text>
+                {getMediaTypeBadge(media1.media_type)}
+                {getRoleTypeBadge(media1.role_type)}
+              </View>
+
+              {actor1Id && actor2Id ? (
+                <>
+                  <Text style={styles(colors).character}>
+                    {`${actor1Name} as: ${media1.character || "Unknown role"}`}
+                  </Text>
+                  <Text style={styles(colors).character}>
+                    {`${actor2Name} as: ${media2.character || "Unknown role"}`}
+                  </Text>
+                </>
+              ) : (
+                <Text style={styles(colors).character}>
+                  {`as: ${media1.character || "Unknown role"}`}
+                </Text>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [
+      colors,
+      actor1Id,
+      actor2Id,
+      actor1Name,
+      actor2Name,
+      getYear,
+      handleMediaPress,
+      onFilmSelect,
+    ]
+  );
 
   // Title text based on actor selection state
   const getTitleText = () => {
@@ -87,19 +203,6 @@ const FilmDisplay = ({
     } else {
       return "Media Display";
     }
-  };
-
-  // Get year from the appropriate date field based on media type
-  const getYear = (media: MediaItem): string => {
-    if (media.media_type === "tv") {
-      return media.first_air_date
-        ? new Date(media.first_air_date).getFullYear().toString()
-        : "Unknown year";
-    }
-
-    return media.release_date
-      ? new Date(media.release_date).getFullYear().toString()
-      : "Unknown year";
   };
 
   // Get media type badge
@@ -150,26 +253,6 @@ const FilmDisplay = ({
       </View>
     );
   };
-
-  // Get counts for filter badges
-  const getMediaCounts = () => {
-    if (!commonMedia || commonMedia.length === 0)
-      return { movies: 0, tv: 0, all: 0 };
-
-    // Count based on the first item in each pair
-    const movies = commonMedia.filter(
-      (pair) => pair[0].media_type === "movie"
-    ).length;
-    const tv = commonMedia.filter((pair) => pair[0].media_type === "tv").length;
-
-    return {
-      movies,
-      tv,
-      all: movies + tv,
-    };
-  };
-
-  const mediaCounts = getMediaCounts();
 
   // Determine if we should show the clear button (when at least one actor is selected)
   const shouldShowClearButton = actor1Id || actor2Id;
@@ -275,77 +358,16 @@ const FilmDisplay = ({
                 : "No credits available"}
             </Text>
           ) : (
-            // Map through media pairs instead of individual items
-            filteredMedia.map((mediaPair, index) => {
-              // Destructure the media pair
-              const [media1, media2] = mediaPair;
-              const isTVShow = media1.media_type === "tv";
-
-              return (
-                <TouchableOpacity
-                  key={`${media1.media_type}-${media1.id}-${index}`}
-                  style={[
-                    styles(colors).mediaItem,
-                    isTVShow ? styles(colors).tvItem : styles(colors).movieItem,
-                  ]}
-                  // Pass the first media item to onFilmSelect
-                  onPress={() => onFilmSelect && onFilmSelect(media1)}
-                  disabled={!onFilmSelect}
-                  activeOpacity={onFilmSelect ? 0.7 : 1}
-                >
-                  <View style={styles(colors).mediaItemContent}>
-                    {media1.poster_path ? (
-                      <Image
-                        source={{
-                          uri: `https://image.tmdb.org/t/p/w92${media1.poster_path}`,
-                        }}
-                        style={styles(colors).poster}
-                      />
-                    ) : (
-                      <View style={styles(colors).noImagePlaceholder}>
-                        <Text style={styles(colors).noImageText}>
-                          No Poster
-                        </Text>
-                      </View>
-                    )}
-                    <View style={styles(colors).mediaInfo}>
-                      <Text style={styles(colors).mediaTitle}>
-                        {media1.media_type === "movie"
-                          ? media1.title
-                          : media1.name}
-                      </Text>
-                      <View style={styles(colors).mediaMetadata}>
-                        <Text style={styles(colors).mediaYear}>
-                          {getYear(media1)}
-                        </Text>
-                        {getMediaTypeBadge(media1.media_type)}
-                        {getRoleTypeBadge(media1.role_type)}
-                      </View>
-
-                      {/* Show character info for both actors when in common media mode */}
-                      {actor1Id && actor2Id ? (
-                        <>
-                          <Text style={styles(colors).character}>
-                            {`${actor1Name} as: ${
-                              media1.character || "Unknown role"
-                            }`}
-                          </Text>
-                          <Text style={styles(colors).character}>
-                            {`${actor2Name} as: ${
-                              media2.character || "Unknown role"
-                            }`}
-                          </Text>
-                        </>
-                      ) : (
-                        <Text style={styles(colors).character}>
-                          {`as: ${media1.character || "Unknown role"}`}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+            <FlatList
+              data={filteredMedia}
+              renderItem={renderMediaItem}
+              keyExtractor={keyExtractor}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
+            />
           )}
         </View>
       )}

@@ -55,8 +55,9 @@ const FilmComparisonView = () => {
       };
     }
   };
+
   return (
-    <>
+    <View style={styles(colors).container}>
       {/* First media search */}
       <FilmSearch
         onSelectMedia={setSelectedMediaItem1}
@@ -69,7 +70,7 @@ const FilmComparisonView = () => {
         selectedMedia={selectedMediaItem2}
       />
 
-      {/* Actor comparison section */}
+      {/* Actor comparison section - this contains the FlatList */}
       <View style={styles(colors).actorSection}>
         <ActorDisplay onActorSelect={handleActorSelect} />
       </View>
@@ -110,14 +111,17 @@ const FilmComparisonView = () => {
           selectedActor2={selectedCastMember2}
         />
       )}
-    </>
+    </View>
   );
 };
 
 const styles = (colors: any) =>
   StyleSheet.create({
+    container: {
+      flex: 1,
+    },
     actorSection: {
-      flex: 2,
+      flex: 1, // Changed from flex: 2 to flex: 1
       minHeight: 200,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,

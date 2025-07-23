@@ -26,7 +26,7 @@ const ActorComparisonView = () => {
     useState<MediaItem | null>(null);
 
   return (
-    <>
+    <View style={styles(colors).container}>
       <ActorSearch
         onSelectActor={setSelectedCastMember1}
         selectedActor={selectedCastMember1}
@@ -87,14 +87,17 @@ const ActorComparisonView = () => {
           />
         )}
       </View>
-    </>
+    </View>
   );
 };
 
 const styles = (colors: any) =>
   StyleSheet.create({
+    container: {
+      flex: 1,
+    },
     filmSection: {
-      flex: 2,
+      flex: 1, // Changed from flex: 2 to flex: 1
       minHeight: 300,
       borderTopWidth: 1,
       borderTopColor: colors.border,

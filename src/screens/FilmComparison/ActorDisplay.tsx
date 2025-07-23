@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   Image,
   TouchableOpacity,
+  FlatList,
 } from "react-native";
 import { useFilmContext } from "../../context/FilmContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -33,44 +34,29 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
     displayMode,
   } = useFilmContext();
 
-  // Add filter state
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
-  const [filteredPeople, setFilteredPeople] = useState<[Person, Person][]>([]);
 
-  // Apply filtering when castMembers or filterMode changes
-  useEffect(() => {
+  // Memoize the filtered people to avoid recalculating on every render
+  const filteredPeople = useMemo(() => {
     if (!castMembers || castMembers.length === 0) {
-      setFilteredPeople([]);
-      return;
+      return [];
     }
 
     if (filterMode === "all") {
-      setFilteredPeople(castMembers);
+      return castMembers;
     } else if (filterMode === "cast") {
-      // Filter based on the first person in each pair
-      setFilteredPeople(
-        castMembers.filter((pair) => pair[0].role_type === "cast")
-      );
+      return castMembers.filter((pair) => pair[0].role_type === "cast");
     } else if (filterMode === "crew") {
-      // Filter based on the first person in each pair
-      setFilteredPeople(
-        castMembers.filter((pair) => pair[0].role_type === "crew")
-      );
+      return castMembers.filter((pair) => pair[0].role_type === "crew");
     }
+    return [];
   }, [castMembers, filterMode]);
 
-  // Add function to clear both media items
-  const handleClearMedia = () => {
-    setSelectedMediaItem1(null);
-    setSelectedMediaItem2(null);
-  };
-
-  // Get counts for filter badges
-  const getPersonCounts = () => {
+  // Memoize person counts to avoid recalculating
+  const personCounts = useMemo(() => {
     if (!castMembers || castMembers.length === 0)
       return { cast: 0, crew: 0, all: 0 };
 
-    // Count based on the first person in each pair
     const castCount = castMembers.filter(
       (pair) => pair[0].role_type === "cast"
     ).length;
@@ -83,7 +69,120 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
       crew: crewCount,
       all: castCount + crewCount,
     };
-  };
+  }, [castMembers]);
+
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handleClearMedia = useCallback(() => {
+    setSelectedMediaItem1(null);
+    setSelectedMediaItem2(null);
+  }, [setSelectedMediaItem1, setSelectedMediaItem2]);
+
+  const handleFilterChange = useCallback((mode: FilterMode) => {
+    setFilterMode(mode);
+  }, []);
+
+  const handleActorPress = useCallback(
+    (person: Person) => {
+      if (onActorSelect && (selectedMediaItem1 || selectedMediaItem2)) {
+        onActorSelect(person);
+      }
+    },
+    [onActorSelect, selectedMediaItem1, selectedMediaItem2]
+  );
+
+  // Memoize the key extractor
+  const keyExtractor = useCallback((item: [Person, Person], index: number) => {
+    return `${item[0].id}-${item[0].role_type}-${index}`;
+  }, []);
+
+  // Memoize the render item function
+  const renderPersonItem = useCallback(
+    ({ item, index }: { item: [Person, Person]; index: number }) => {
+      const [person1, person2] = item;
+      const isCrew = person1.role_type === "crew";
+
+      return (
+        <TouchableOpacity
+          key={`${person1.id}-${index}`}
+          style={[
+            styles(colors).actorItem,
+            isCrew ? styles(colors).crewItem : styles(colors).castItem,
+          ]}
+          onPress={() => handleActorPress(person1)}
+          disabled={
+            !onActorSelect || (!selectedMediaItem1 && !selectedMediaItem2)
+          }
+          activeOpacity={
+            onActorSelect && (selectedMediaItem1 || selectedMediaItem2)
+              ? 0.7
+              : 1
+          }
+        >
+          <View style={styles(colors).actorItemContent}>
+            {person1.profile_path ? (
+              <Image
+                source={{
+                  uri: `https://image.tmdb.org/t/p/w185${person1.profile_path}`,
+                }}
+                style={styles(colors).actorImage}
+              />
+            ) : (
+              <View style={styles(colors).noImagePlaceholder}>
+                <Text style={styles(colors).noImageText}>No Image</Text>
+              </View>
+            )}
+            <View style={styles(colors).actorInfo}>
+              <View style={styles(colors).nameContainer}>
+                <Text style={styles(colors).actorName}>{person1.name}</Text>
+                {getRoleTypeBadge(person1.role_type)}
+              </View>
+
+              {person1.role_type === "crew" ? (
+                displayMode === "comparison" ? (
+                  <>
+                    <Text style={styles(colors).department}>
+                      {person1.departments?.join(", ") || "Crew"}
+                    </Text>
+                    <Text style={styles(colors).character}>
+                      {`in "${selectedMediaItem1?.name}": ${
+                        person1.jobs?.join(", ") || "Unknown job"
+                      }`}
+                    </Text>
+                    <Text style={styles(colors).character}>
+                      {`in "${selectedMediaItem2?.name}": ${
+                        person2.jobs?.join(", ") || "Unknown job"
+                      }`}
+                    </Text>
+                  </>
+                ) : (
+                  <View>
+                    <Text style={styles(colors).department}>
+                      {person1.departments?.join(", ") || "Crew"}
+                    </Text>
+                    <Text style={styles(colors).character} numberOfLines={2}>
+                      {person1.jobs?.join(", ") || "Unknown job"}
+                    </Text>
+                  </View>
+                )
+              ) : (
+                <Text style={styles(colors).character}>
+                  {`as: ${person1.character || "Unknown role"}`}
+                </Text>
+              )}
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [
+      colors,
+      displayMode,
+      selectedMediaItem1,
+      selectedMediaItem2,
+      handleActorPress,
+      onActorSelect,
+    ]
+  );
 
   // Get appropriate media type text
   const getMediaTypeText = (mediaItem: any) => {
@@ -138,9 +237,6 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
 
   // Determine if we should show the filter controls
   const shouldShowFilters = castMembers.length > 0;
-
-  // Get counts for the filter badges
-  const personCounts = getPersonCounts();
 
   return (
     <View style={styles(colors).container}>
@@ -234,96 +330,16 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
                 : "No cast information available"}
             </Text>
           ) : (
-            // Map through the filtered array
-            filteredPeople.map((personPair, index) => {
-              // Destructure the person pair
-              const [person1, person2] = personPair;
-              const isCrew = person1.role_type === "crew";
-
-              return (
-                <TouchableOpacity
-                  key={`${person1.id}-${index}`}
-                  style={[
-                    styles(colors).actorItem,
-                    isCrew ? styles(colors).crewItem : styles(colors).castItem,
-                  ]}
-                  onPress={() =>
-                    onActorSelect &&
-                    (selectedMediaItem1 || selectedMediaItem2) &&
-                    onActorSelect(person1)
-                  }
-                  disabled={
-                    !onActorSelect ||
-                    (!selectedMediaItem1 && !selectedMediaItem2)
-                  }
-                  activeOpacity={
-                    onActorSelect && (selectedMediaItem1 || selectedMediaItem2)
-                      ? 0.7
-                      : 1
-                  }
-                >
-                  <View style={styles(colors).actorItemContent}>
-                    {person1.profile_path ? (
-                      <Image
-                        source={{
-                          uri: `https://image.tmdb.org/t/p/w185${person1.profile_path}`,
-                        }}
-                        style={styles(colors).actorImage}
-                      />
-                    ) : (
-                      <View style={styles(colors).noImagePlaceholder}>
-                        <Text style={styles(colors).noImageText}>No Image</Text>
-                      </View>
-                    )}
-                    <View style={styles(colors).actorInfo}>
-                      <View style={styles(colors).nameContainer}>
-                        <Text style={styles(colors).actorName}>
-                          {person1.name}
-                        </Text>
-                        {getRoleTypeBadge(person1.role_type)}
-                      </View>
-
-                      {/* Check if it's a crew member and display appropriate information */}
-                      {person1.role_type === "crew" ? (
-                        displayMode === "comparison" ? (
-                          <>
-                            <Text style={styles(colors).department}>
-                              {person1.departments?.join(", ") || "Crew"}
-                            </Text>
-                            <Text style={styles(colors).character}>
-                              {`in "${selectedMediaItem1?.name}": ${
-                                person1.jobs?.join(", ") || "Unknown job"
-                              }`}
-                            </Text>
-                            <Text style={styles(colors).character}>
-                              {`in "${selectedMediaItem2?.name}": ${
-                                person2.jobs?.join(", ") || "Unknown job"
-                              }`}
-                            </Text>
-                          </>
-                        ) : (
-                          <View>
-                            <Text style={styles(colors).department}>
-                              {person1.departments?.join(", ") || "Crew"}
-                            </Text>
-                            <Text
-                              style={styles(colors).character}
-                              numberOfLines={2}
-                            >
-                              {person1.jobs?.join(", ") || "Unknown job"}
-                            </Text>
-                          </View>
-                        )
-                      ) : (
-                        <Text style={styles(colors).character}>
-                          {`as: ${person1.character || "Unknown role"}`}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+            <FlatList
+              data={filteredPeople}
+              renderItem={renderPersonItem}
+              keyExtractor={keyExtractor}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
+            />
           )}
         </View>
       )}
