@@ -82,24 +82,20 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   // Handle loading a saved search
   const handleLoadSearch = (search: SavedSearch) => {
     if (search.type === "media") {
-      // Load media comparison
+      // Load media comparison - only update media items, don't touch people
       setSelectedMediaItem1(search.mediaItem1 || null);
       setSelectedMediaItem2(search.mediaItem2 || null);
-      // Clear any selected people
-      setSelectedCastMember1(null);
-      setSelectedCastMember2(null);
+      // Don't clear selected people - let them remain as they are
 
       // Navigate to compare by media tab
       if (onNavigateToTab) {
         onNavigateToTab("compareByFilm");
       }
     } else {
-      // Load person comparison
+      // Load person comparison - only update people, don't touch media
       setSelectedCastMember1(search.person1 || null);
       setSelectedCastMember2(search.person2 || null);
-      // Clear any selected media
-      setSelectedMediaItem1(null);
-      setSelectedMediaItem2(null);
+      // Don't clear selected media - let them remain as they are
 
       // Navigate to compare by person tab
       if (onNavigateToTab) {
