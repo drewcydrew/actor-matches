@@ -49,6 +49,7 @@ export type MediaItem = Film | TVShow;
 export interface TVShowCredits {
   id: number;
   cast: CastMember[];
+  crew: CrewMember[]; // Add crew property
 }
 
 export interface MovieSearchResult {

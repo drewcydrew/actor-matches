@@ -402,12 +402,15 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           );
         }
       } else {
-        // For TV shows, use getTVShowAggregateCredits
-        const tvCastData = await tmdbApi.getTVShowAggregateCredits(mediaId);
+        // For TV shows, get both aggregate credits (cast) and regular credits (crew)
+        const [tvAggregateData, tvRegularData] = await Promise.all([
+          tmdbApi.getTVShowAggregateCredits(mediaId),
+          tmdbApi.getTVShowCast(mediaId),
+        ]);
 
-        // Process TV cast members - handle the different structure
-        if (tvCastData.cast && tvCastData.cast.length > 0) {
-          castMembers = tvCastData.cast.map((member) => {
+        // Process TV cast members from aggregate credits
+        if (tvAggregateData.cast && tvAggregateData.cast.length > 0) {
+          castMembers = tvAggregateData.cast.map((member) => {
             // Use type assertion to tell TypeScript about the expected structure
             const tvMember = member as {
               id: number;
@@ -444,8 +447,46 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           });
         }
 
-        // TV shows' aggregate credits might not have crew in the same way
-        // If you need crew for TV shows, you may need to use a different API call
+        // Process TV crew members from regular credits
+        if (tvRegularData.crew && tvRegularData.crew.length > 0) {
+          // Group crew members by person ID (same logic as movies)
+          const crewByPerson = new Map<
+            number,
+            {
+              person: any;
+              jobs: string[];
+              departments: Set<string>;
+            }
+          >();
+
+          tvRegularData.crew.forEach((member) => {
+            if (!crewByPerson.has(member.id)) {
+              crewByPerson.set(member.id, {
+                person: member,
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const crewData = crewByPerson.get(member.id)!;
+            crewData.jobs.push(member.job || "Unknown job");
+            crewData.departments.add(member.department || "Other");
+          });
+
+          // Convert grouped crew data to Person objects
+          crewMembers = Array.from(crewByPerson.values()).map(
+            ({ person, jobs, departments }) => ({
+              id: person.id,
+              name: person.name,
+              profile_path: person.profile_path,
+              jobs: jobs,
+              departments: Array.from(departments),
+              popularity: person.popularity || 0,
+              gender: person.gender,
+              role_type: "crew" as const,
+            })
+          );
+        }
       }
 
       // Combine cast and crew and sort by popularity
