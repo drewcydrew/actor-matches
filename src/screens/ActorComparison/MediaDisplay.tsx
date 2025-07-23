@@ -119,11 +119,130 @@ const MediaDisplay = ({
   );
 
   // Add a new function to get role type badge with combined role support
-  const getRoleTypeBadge = (roleType?: string) => {
-    if (!roleType) return null;
+  const getRoleTypeBadge = (media: MediaItem) => {
+    // Check if the media item has a roles array (from aggregated data)
+    const roles = (media as any).roles || [];
+
+    if (roles.length > 0) {
+      const hasCast = roles.includes("cast");
+      const hasCrew = roles.includes("crew");
+
+      // If person has both roles, show a combined badge
+      if (hasCast && hasCrew) {
+        return (
+          <View style={styles(colors).combinedRoleBadge}>
+            <View
+              style={[
+                styles(colors).roleTypeBadge,
+                { backgroundColor: colors.primary, marginRight: 4 },
+              ]}
+            >
+              <Ionicons name="people-outline" size={8} color="#fff" />
+              <Text style={styles(colors).mediaTypeBadgeText}>CAST</Text>
+            </View>
+            <View
+              style={[
+                styles(colors).roleTypeBadge,
+                { backgroundColor: colors.secondary },
+              ]}
+            >
+              <Ionicons name="construct-outline" size={8} color="#fff" />
+              <Text style={styles(colors).mediaTypeBadgeText}>CREW</Text>
+            </View>
+          </View>
+        );
+      }
+
+      // Single role badge based on roles array
+      const isCrew = hasCrew && !hasCast;
+      return (
+        <View
+          style={[
+            styles(colors).roleTypeBadge,
+            {
+              backgroundColor: isCrew ? colors.secondary : colors.primary,
+              marginLeft: 8,
+            },
+          ]}
+        >
+          <Ionicons
+            name={isCrew ? "construct-outline" : "people-outline"}
+            size={12}
+            color="#fff"
+          />
+          <Text style={styles(colors).mediaTypeBadgeText}>
+            {isCrew ? "CREW" : "CAST"}
+          </Text>
+        </View>
+      );
+    }
+
+    // Fallback to checking individual properties if no roles array
+    const hasCharacter = !!media.character;
+    const hasJob = !!media.job;
+    const hasBothRoles = hasCharacter && hasJob;
+
+    if (hasBothRoles) {
+      // Show combined badges for items with both cast and crew roles
+      return (
+        <View style={styles(colors).combinedRoleBadge}>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginRight: 4 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={8} color="#fff" />
+            <Text style={styles(colors).mediaTypeBadgeText}>CAST</Text>
+          </View>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={8} color="#fff" />
+            <Text style={styles(colors).mediaTypeBadgeText}>CREW</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single role badge - determine from available data
+    const roleType = media.role_type;
+    if (!roleType) {
+      // If no role_type, infer from data
+      if (hasJob && !hasCharacter) {
+        // Only has job info, likely crew
+        return (
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary, marginLeft: 8 },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={12} color="#fff" />
+            <Text style={styles(colors).mediaTypeBadgeText}>CREW</Text>
+          </View>
+        );
+      } else if (hasCharacter) {
+        // Has character info, likely cast
+        return (
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginLeft: 8 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={12} color="#fff" />
+            <Text style={styles(colors).mediaTypeBadgeText}>CAST</Text>
+          </View>
+        );
+      }
+      return null;
+    }
 
     const isCrew = roleType === "crew";
-
     return (
       <View
         style={[
@@ -183,8 +302,7 @@ const MediaDisplay = ({
               </Text>
               <View style={styles(colors).mediaMetadata}>
                 <Text style={styles(colors).mediaYear}>{year}</Text>
-                {getMediaTypeBadge(media1.media_type)}
-                {getRoleTypeBadge(media1.role_type)}
+                {getRoleTypeBadge(media1)}
               </View>
 
               {actor1Id && actor2Id ? (
@@ -254,29 +372,6 @@ const MediaDisplay = ({
     } else {
       return "Media Display";
     }
-  };
-
-  // Get media type badge
-  const getMediaTypeBadge = (mediaType: string) => {
-    const isTVShow = mediaType === "tv";
-
-    return (
-      <View
-        style={[
-          styles(colors).mediaTypeBadge,
-          { backgroundColor: isTVShow ? colors.secondary : colors.primary },
-        ]}
-      >
-        <Ionicons
-          name={isTVShow ? "tv-outline" : "film-outline"}
-          size={12}
-          color="#fff"
-        />
-        <Text style={styles(colors).mediaTypeBadgeText}>
-          {isTVShow ? "TV SHOW" : "MOVIE"}
-        </Text>
-      </View>
-    );
   };
 
   // Determine if we should show the clear button (when at least one actor is selected)
@@ -573,6 +668,11 @@ const styles = (colors: any) =>
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 10,
+    },
+    combinedRoleBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginLeft: 8,
     },
   });
 

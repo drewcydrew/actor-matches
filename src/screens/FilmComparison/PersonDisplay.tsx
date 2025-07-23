@@ -143,10 +143,32 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               </View>
 
               {/* Cast character information */}
-              {hasCast && person1.character && (
-                <Text style={styles(colors).character}>
-                  {`as: ${person1.character}`}
-                </Text>
+              {hasCast && (
+                <View>
+                  {displayMode === "comparison" &&
+                  selectedMediaItem1 &&
+                  selectedMediaItem2 ? (
+                    <>
+                      {person1.character && (
+                        <Text style={styles(colors).character}>
+                          {`in "${selectedMediaItem1.name}": ${person1.character}`}
+                        </Text>
+                      )}
+                      {person2.character && (
+                        <Text style={styles(colors).character}>
+                          {`in "${selectedMediaItem2.name}": ${person2.character}`}
+                        </Text>
+                      )}
+                    </>
+                  ) : (
+                    // Single media mode or only one media selected
+                    person1.character && (
+                      <Text style={styles(colors).character}>
+                        {`as: ${person1.character}`}
+                      </Text>
+                    )
+                  )}
+                </View>
               )}
 
               {/* Crew information */}
@@ -155,15 +177,17 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
                   <Text style={styles(colors).department}>
                     {person1.departments?.join(", ") || "Crew"}
                   </Text>
-                  {displayMode === "comparison" ? (
+                  {displayMode === "comparison" &&
+                  selectedMediaItem1 &&
+                  selectedMediaItem2 ? (
                     <>
                       <Text style={styles(colors).character}>
-                        {`in "${selectedMediaItem1?.name}": ${
+                        {`in "${selectedMediaItem1.name}": ${
                           person1.jobs?.join(", ") || "Unknown job"
                         }`}
                       </Text>
                       <Text style={styles(colors).character}>
-                        {`in "${selectedMediaItem2?.name}": ${
+                        {`in "${selectedMediaItem2.name}": ${
                           person2.jobs?.join(", ") || "Unknown job"
                         }`}
                       </Text>
