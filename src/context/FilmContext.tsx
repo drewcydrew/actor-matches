@@ -241,22 +241,37 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           STORAGE_KEYS.CAST_MEMBER_2
         );
 
-        // Parse stored data or use defaults
+        // Check if this is the first time loading (no storage keys exist at all)
+        const isFirstLoad =
+          storedMediaItem1String === null &&
+          storedMediaItem2String === null &&
+          storedCastMember1String === null &&
+          storedCastMember2String === null;
+
+        // Parse stored data - only use defaults on first load
         const storedMediaItem1 = storedMediaItem1String
           ? JSON.parse(storedMediaItem1String)
-          : DEFAULT_MEDIA_1;
+          : isFirstLoad
+          ? DEFAULT_MEDIA_1
+          : null;
 
         const storedMediaItem2 = storedMediaItem2String
           ? JSON.parse(storedMediaItem2String)
-          : DEFAULT_MEDIA_2;
+          : isFirstLoad
+          ? DEFAULT_MEDIA_2
+          : null;
 
         const storedCastMember1 = storedCastMember1String
           ? JSON.parse(storedCastMember1String)
-          : DEFAULT_ACTOR_1;
+          : isFirstLoad
+          ? DEFAULT_ACTOR_1
+          : null;
 
         const storedCastMember2 = storedCastMember2String
           ? JSON.parse(storedCastMember2String)
-          : DEFAULT_ACTOR_2;
+          : isFirstLoad
+          ? DEFAULT_ACTOR_2
+          : null;
 
         // Update state with stored values
         setSelectedMediaItem1Internal(storedMediaItem1);
