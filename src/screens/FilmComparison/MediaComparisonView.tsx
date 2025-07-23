@@ -5,6 +5,9 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  FlatList,
+  Text,
+  Image,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
@@ -15,15 +18,18 @@ import PersonCreditsModal from "./PersonCreditsModal";
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 import { Ionicons } from "@expo/vector-icons";
-import { Text } from "react-native";
 
 const MediaComparisonView = () => {
   const { colors } = useTheme();
   const {
-    selectedMediaItem1,
-    selectedMediaItem2,
-    setSelectedMediaItem1,
-    setSelectedMediaItem2,
+    // Use array-based media items
+    selectedMediaItems,
+    addMediaItem,
+    removeMediaItem,
+    clearMediaItems,
+    reorderMediaItems,
+    updateMediaItem,
+    // Keep these for PersonDisplay compatibility for now
     selectedCastMember1,
     selectedCastMember2,
     setSelectedCastMember1,
@@ -46,12 +52,22 @@ const MediaComparisonView = () => {
     setIsPersonCreditsVisible(true);
   };
 
-  // Handle save search button press - now immediate
+  // Handle adding media item
+  const handleAddMedia = (media: MediaItem) => {
+    addMediaItem(media);
+  };
+
+  // Handle removing media item
+  const handleRemoveMedia = (mediaId: number) => {
+    removeMediaItem(mediaId);
+  };
+
+  // Handle save search button press - now immediate with array support
   const handleSaveSearch = async () => {
-    if (!selectedMediaItem1 && !selectedMediaItem2) {
+    if (selectedMediaItems.length === 0) {
       Alert.alert(
         "No Selection",
-        "Please select at least one media item before saving."
+        "Please add at least one media item before saving."
       );
       return;
     }
@@ -62,10 +78,10 @@ const MediaComparisonView = () => {
       // Generate default name
       const defaultName = generateDefaultSearchName();
 
+      // Use the new array-based method
       await saveCurrentMediaComparison(
         defaultName,
-        selectedMediaItem1,
-        selectedMediaItem2
+        selectedMediaItems // Pass the entire array
       );
 
       if (Platform.OS === "web") {
@@ -89,56 +105,98 @@ const MediaComparisonView = () => {
 
   // Generate a default search name based on selected media
   const generateDefaultSearchName = (): string => {
-    if (selectedMediaItem1 && selectedMediaItem2) {
-      return `${selectedMediaItem1.name} & ${selectedMediaItem2.name}`;
-    } else if (selectedMediaItem1) {
-      return `${selectedMediaItem1.name} Cast`;
-    } else if (selectedMediaItem2) {
-      return `${selectedMediaItem2.name} Cast`;
+    if (selectedMediaItems.length === 0) {
+      return "Media Comparison";
+    } else if (selectedMediaItems.length === 1) {
+      return `${selectedMediaItems[0].name} Cast`;
+    } else if (selectedMediaItems.length === 2) {
+      return `${selectedMediaItems[0].name} & ${selectedMediaItems[1].name}`;
+    } else {
+      return `${selectedMediaItems[0].name} + ${
+        selectedMediaItems.length - 1
+      } more`;
     }
-    return "Media Comparison";
   };
 
-  // Function to ensure media items have all required properties
-  const ensureMediaItemProperties = (
-    media: MediaItem | null
-  ): MediaItem | null => {
-    if (!media) return null;
+  // Render selected media item
+  const renderSelectedMediaItem = ({
+    item,
+    index,
+  }: {
+    item: MediaItem;
+    index: number;
+  }) => {
+    const releaseDate =
+      item.media_type === "tv" ? item.first_air_date : item.release_date;
+    const year = releaseDate
+      ? new Date(releaseDate).getFullYear().toString()
+      : "";
 
-    if (media.media_type === "movie") {
-      // For movies, return with explicit movie type
-      return {
-        ...media,
-        name: media.name || media.title || "Unknown",
-        title: media.title || media.name || "Unknown",
-        media_type: "movie" as const, // Use const assertion for literal type
-      };
-    } else {
-      // For TV shows, return with explicit TV type
-      return {
-        ...media,
-        name: media.name || "Unknown",
-        media_type: "tv" as const, // Use const assertion for literal type
-      };
-    }
+    return (
+      <View style={styles(colors).mediaItemContainer}>
+        {item.poster_path && (
+          <Image
+            source={{
+              uri: `https://image.tmdb.org/t/p/w92${item.poster_path}`,
+            }}
+            style={styles(colors).mediaPoster}
+          />
+        )}
+        <View style={styles(colors).mediaInfo}>
+          <Text style={styles(colors).mediaTitle} numberOfLines={2}>
+            {item.name}
+          </Text>
+          <Text style={styles(colors).mediaDetails}>
+            {year} • {item.media_type === "tv" ? "TV Show" : "Movie"}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={styles(colors).removeButton}
+          onPress={() => handleRemoveMedia(item.id)}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close-circle" size={20} color={colors.error} />
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   // Check if we should show the save button
-  const shouldShowSaveButton = selectedMediaItem1 || selectedMediaItem2;
+  const shouldShowSaveButton = selectedMediaItems.length > 0;
 
   return (
     <View style={styles(colors).container}>
-      {/* First media search */}
-      <FilmSearch
-        onSelectMedia={setSelectedMediaItem1}
-        selectedMedia={selectedMediaItem1}
-      />
+      {/* Media Search */}
+      <FilmSearch onSelectMedia={handleAddMedia} />
 
-      {/* Second media search */}
-      <FilmSearch
-        onSelectMedia={setSelectedMediaItem2}
-        selectedMedia={selectedMediaItem2}
-      />
+      {/* Selected Media Items */}
+      {selectedMediaItems.length > 0 && (
+        <View style={styles(colors).selectedMediaSection}>
+          <View style={styles(colors).selectedMediaHeader}>
+            <Text style={styles(colors).selectedMediaTitle}>
+              Selected Media ({selectedMediaItems.length})
+            </Text>
+            <TouchableOpacity
+              style={styles(colors).clearAllButton}
+              onPress={clearMediaItems}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <Text style={styles(colors).clearAllText}>Clear All</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={selectedMediaItems}
+            renderItem={renderSelectedMediaItem}
+            keyExtractor={(item, index) =>
+              `${item.media_type}-${item.id}-${index}`
+            }
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles(colors).mediaList}
+          />
+        </View>
+      )}
 
       {/* Actor comparison section - this contains the FlatList */}
       <View style={styles(colors).actorSection}>
@@ -177,8 +235,6 @@ const MediaComparisonView = () => {
         </>
       )}
 
-      {/* Remove Save Search Modal */}
-
       {/* Show modal when person is selected */}
       {selectedPerson && (
         <PersonCreditsModal
@@ -190,17 +246,6 @@ const MediaComparisonView = () => {
             setIsPersonCreditsVisible(false);
             setSelectedPerson(null);
           }}
-          // Media selection handlers
-          onSelectMedia1={(media) => {
-            setSelectedMediaItem1(media);
-            setSelectedPerson(null);
-            setIsPersonCreditsVisible(false);
-          }}
-          onSelectMedia2={(media) => {
-            setSelectedMediaItem2(media);
-            setSelectedPerson(null);
-            setIsPersonCreditsVisible(false);
-          }}
           // Person selection handlers
           onSelectPerson1={(person) => {
             setSelectedCastMember1(person);
@@ -208,9 +253,7 @@ const MediaComparisonView = () => {
           onSelectPerson2={(person) => {
             setSelectedCastMember2(person);
           }}
-          // Current selections
-          selectedMedia1={ensureMediaItemProperties(selectedMediaItem1)}
-          selectedMedia2={ensureMediaItemProperties(selectedMediaItem2)}
+          // Current person selections
           selectedPerson1={selectedCastMember1}
           selectedPerson2={selectedCastMember2}
         />
@@ -224,8 +267,81 @@ const styles = (colors: any) =>
     container: {
       flex: 1,
     },
+    // New styles for selected media section
+    selectedMediaSection: {
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingVertical: 12,
+    },
+    selectedMediaHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    selectedMediaTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    clearAllButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      backgroundColor: colors.surface,
+    },
+    clearAllText: {
+      fontSize: 12,
+      color: colors.error,
+      marginLeft: 4,
+      fontWeight: "500",
+    },
+    mediaList: {
+      paddingHorizontal: 16,
+      gap: 12,
+    },
+    mediaItemContainer: {
+      width: 160,
+      backgroundColor: colors.surface,
+      borderRadius: 8,
+      padding: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    mediaPoster: {
+      width: "100%",
+      height: 90,
+      borderRadius: 6,
+      backgroundColor: colors.placeholderBackground,
+      marginBottom: 8,
+    },
+    mediaInfo: {
+      flex: 1,
+    },
+    mediaTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+      marginBottom: 4,
+    },
+    mediaDetails: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    removeButton: {
+      position: "absolute",
+      top: 4,
+      right: 4,
+      backgroundColor: colors.background,
+      borderRadius: 10,
+      padding: 2,
+    },
     actorSection: {
-      flex: 1, // Changed from flex: 2 to flex: 1
+      flex: 1,
       minHeight: 200,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,

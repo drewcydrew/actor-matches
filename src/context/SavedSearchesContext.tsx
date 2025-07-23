@@ -19,9 +19,8 @@ export interface SavedSearch {
   dateCreated: string;
   dateModified: string;
 
-  // Media comparison data
-  mediaItem1?: MediaItem | null;
-  mediaItem2?: MediaItem | null;
+  // Media comparison data - array-based only
+  mediaItems?: MediaItem[];
 
   // Person comparison data
   person1?: Person | null;
@@ -65,8 +64,7 @@ interface SavedSearchesContextType {
   // Quick save current state functions
   saveCurrentMediaComparison: (
     name: string,
-    media1?: MediaItem | null,
-    media2?: MediaItem | null,
+    mediaItems: MediaItem[],
     description?: string
   ) => Promise<string>;
   saveCurrentPersonComparison: (
@@ -109,7 +107,7 @@ const generateId = (): string => {
   return `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Helper function to validate saved search structure
+// Helper function to validate saved search structure - updated
 const isValidSavedSearch = (search: any): search is SavedSearch => {
   return (
     search &&
@@ -135,7 +133,7 @@ export const SavedSearchesProvider = ({
     loadSavedSearches();
   }, []);
 
-  // Load searches from storage
+  // Load searches from storage - updated to handle migration from legacy format
   const loadSavedSearches = async () => {
     try {
       setLoading(true);
@@ -148,8 +146,49 @@ export const SavedSearchesProvider = ({
       if (storedSearches) {
         const parsedSearches = JSON.parse(storedSearches);
 
-        // Validate the structure and filter out invalid entries
-        const validSearches = parsedSearches.filter(isValidSavedSearch);
+        // Validate and migrate the structure
+        const validSearches = parsedSearches
+          .filter(isValidSavedSearch)
+          .map((search: any) => {
+            // Migration: convert legacy format to array format
+            if (
+              search.type === "media" &&
+              !search.mediaItems &&
+              (search.mediaItem1 || search.mediaItem2)
+            ) {
+              const migratedMediaItems: MediaItem[] = [];
+              if (search.mediaItem1) migratedMediaItems.push(search.mediaItem1);
+              if (search.mediaItem2) migratedMediaItems.push(search.mediaItem2);
+
+              // Return migrated search without legacy properties
+              return {
+                id: search.id,
+                name: search.name,
+                type: search.type,
+                dateCreated: search.dateCreated,
+                dateModified: search.dateModified,
+                mediaItems: migratedMediaItems,
+                description: search.description,
+                tags: search.tags,
+              } as SavedSearch;
+            }
+
+            // For searches that already have mediaItems, ensure legacy properties are removed
+            if (search.type === "media") {
+              return {
+                id: search.id,
+                name: search.name,
+                type: search.type,
+                dateCreated: search.dateCreated,
+                dateModified: search.dateModified,
+                mediaItems: search.mediaItems || [],
+                description: search.description,
+                tags: search.tags,
+              } as SavedSearch;
+            }
+
+            return search;
+          });
 
         // Sort by date modified (most recent first)
         validSearches.sort(
@@ -159,6 +198,9 @@ export const SavedSearchesProvider = ({
         );
 
         setSavedSearches(validSearches);
+
+        // Always save back to ensure legacy properties are cleaned up
+        await saveSavedSearches(validSearches);
       }
     } catch (err) {
       console.error("Error loading saved searches:", err);
@@ -353,18 +395,16 @@ export const SavedSearchesProvider = ({
     return savedSearches.slice(0, limit);
   };
 
-  // Quick save current media comparison
+  // Quick save current media comparison - simplified to only use array
   const saveCurrentMediaComparison = async (
     name: string,
-    media1?: MediaItem | null,
-    media2?: MediaItem | null,
+    mediaItems: MediaItem[],
     description?: string
   ): Promise<string> => {
     return await saveSearch({
       name,
       type: "media",
-      mediaItem1: media1,
-      mediaItem2: media2,
+      mediaItems: mediaItems,
       description,
     });
   };

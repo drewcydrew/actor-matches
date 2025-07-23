@@ -23,10 +23,9 @@ const PersonComparisonView = () => {
     selectedCastMember2,
     setSelectedCastMember1,
     setSelectedCastMember2,
-    selectedMediaItem1,
-    selectedMediaItem2,
-    setSelectedMediaItem1,
-    setSelectedMediaItem2,
+    // Use array-based media selection instead of individual items
+    selectedMediaItems,
+    addMediaItem,
   } = useFilmContext();
 
   const { saveCurrentPersonComparison } = useSavedSearches();
@@ -173,16 +172,8 @@ const PersonComparisonView = () => {
               setIsMediaCastVisible(false);
               setSelectedMediaForCast(null);
             }}
-            onSelectMedia1={(media) => {
-              setSelectedMediaItem1(media);
-            }}
-            onSelectMedia2={(media) => {
-              setSelectedMediaItem2(media);
-            }}
             selectedActor1={selectedCastMember1}
             selectedActor2={selectedCastMember2}
-            selectedMedia1={selectedMediaItem1}
-            selectedMedia2={selectedMediaItem2}
           />
         )}
       </View>

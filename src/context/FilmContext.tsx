@@ -4,16 +4,17 @@ import React, {
   ReactNode,
   useContext,
   useEffect,
+  useCallback,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Film, TVShow, MediaItem, Person } from "../types/types";
 import tmdbApi from "../api/tmdbApi";
-//import { Actor } from "../types/types";
 
 // Storage keys for AsyncStorage
 const STORAGE_KEYS = {
-  MEDIA_ITEM_1: "actor-matches:selectedMediaItem1",
-  MEDIA_ITEM_2: "actor-matches:selectedMediaItem2",
+  SELECTED_MEDIA_ITEMS: "actor-matches:selectedMediaItems",
+  MEDIA_ITEM_1: "actor-matches:selectedMediaItem1", // Keep for migration only
+  MEDIA_ITEM_2: "actor-matches:selectedMediaItem2", // Keep for migration only
   CAST_MEMBER_1: "actor-matches:selectedCastMember1",
   CAST_MEMBER_2: "actor-matches:selectedCastMember2",
 };
@@ -100,11 +101,14 @@ const DEFAULT_ACTOR_2: Person = {
 
 // Define the shape of our context state
 interface FilmContextType {
-  // Media selection
-  selectedMediaItem1: MediaItem | null;
-  selectedMediaItem2: MediaItem | null;
-  setSelectedMediaItem1: (media: MediaItem | null) => void;
-  setSelectedMediaItem2: (media: MediaItem | null) => void;
+  // Array-based media selection (primary)
+  selectedMediaItems: MediaItem[];
+  addMediaItem: (media: MediaItem) => void;
+  removeMediaItem: (mediaId: number) => void;
+  clearMediaItems: () => void;
+  reorderMediaItems: (fromIndex: number, toIndex: number) => void;
+  updateMediaItem: (index: number, media: MediaItem) => void;
+  getMediaItemAtIndex: (index: number) => MediaItem | null;
 
   // Cast member selection
   selectedCastMember1: Person | null;
@@ -134,21 +138,19 @@ interface FilmContextType {
     actor2Name?: string
   ) => Promise<void>;
 
+  // API methods
   searchPeople: (query: string) => Promise<{
     results: Person[];
     error: string | null;
   }>;
-
   getMediaItems: (query: string) => Promise<{
     results: MediaItem[];
     error: string | null;
   }>;
-
   getCredits: (actorId: number) => Promise<{
     results: MediaItem[];
     error: string | null;
   }>;
-
   getCast: (
     mediaId: number,
     mediaType: "movie" | "tv"
@@ -160,10 +162,13 @@ interface FilmContextType {
 
 // Create the context with default values
 const FilmContext = createContext<FilmContextType>({
-  selectedMediaItem1: null,
-  selectedMediaItem2: null,
-  setSelectedMediaItem1: () => {},
-  setSelectedMediaItem2: () => {},
+  selectedMediaItems: [],
+  addMediaItem: () => {},
+  removeMediaItem: () => {},
+  clearMediaItems: () => {},
+  reorderMediaItems: () => {},
+  updateMediaItem: () => {},
+  getMediaItemAtIndex: () => null,
   selectedCastMember1: null,
   selectedCastMember2: null,
   setSelectedCastMember1: () => {},
@@ -193,11 +198,8 @@ interface FilmProviderProps {
 
 // Context provider component
 export const FilmProvider = ({ children }: FilmProviderProps) => {
-  // Media selection state - initialize with null and load from storage
-  const [selectedMediaItem1, setSelectedMediaItem1Internal] =
-    useState<MediaItem | null>(null);
-  const [selectedMediaItem2, setSelectedMediaItem2Internal] =
-    useState<MediaItem | null>(null);
+  // Array-based media selection state (primary)
+  const [selectedMediaItems, setSelectedMediaItems] = useState<MediaItem[]>([]);
 
   // Actor selection state - initialize with null and load from storage
   const [selectedCastMember1, setSelectedCastMember1Internal] =
@@ -225,7 +227,12 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   useEffect(() => {
     const loadStoredData = async () => {
       try {
-        // Load media items
+        // Load media items array first (primary method)
+        const storedMediaItemsString = await AsyncStorage.getItem(
+          STORAGE_KEYS.SELECTED_MEDIA_ITEMS
+        );
+
+        // Load legacy individual items for migration only
         const storedMediaItem1String = await AsyncStorage.getItem(
           STORAGE_KEYS.MEDIA_ITEM_1
         );
@@ -243,24 +250,56 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         // Check if this is the first time loading (no storage keys exist at all)
         const isFirstLoad =
+          storedMediaItemsString === null &&
           storedMediaItem1String === null &&
           storedMediaItem2String === null &&
           storedCastMember1String === null &&
           storedCastMember2String === null;
 
-        // Parse stored data - only use defaults on first load
-        const storedMediaItem1 = storedMediaItem1String
-          ? JSON.parse(storedMediaItem1String)
-          : isFirstLoad
-          ? DEFAULT_MEDIA_1
-          : null;
+        let mediaItemsArray: MediaItem[] = [];
 
-        const storedMediaItem2 = storedMediaItem2String
-          ? JSON.parse(storedMediaItem2String)
-          : isFirstLoad
-          ? DEFAULT_MEDIA_2
-          : null;
+        if (storedMediaItemsString) {
+          // Primary method: Load from array storage
+          try {
+            mediaItemsArray = JSON.parse(storedMediaItemsString);
+          } catch (parseError) {
+            console.error(
+              "Error parsing stored media items array:",
+              parseError
+            );
+            mediaItemsArray = [];
+          }
+        } else if (storedMediaItem1String || storedMediaItem2String) {
+          // Migration: Load from legacy individual storage and convert to array
+          const legacyMedia1 = storedMediaItem1String
+            ? JSON.parse(storedMediaItem1String)
+            : null;
+          const legacyMedia2 = storedMediaItem2String
+            ? JSON.parse(storedMediaItem2String)
+            : null;
 
+          if (legacyMedia1) mediaItemsArray.push(legacyMedia1);
+          if (legacyMedia2) mediaItemsArray.push(legacyMedia2);
+
+          // Save the migrated array and clean up legacy storage
+          if (mediaItemsArray.length > 0) {
+            await AsyncStorage.setItem(
+              STORAGE_KEYS.SELECTED_MEDIA_ITEMS,
+              JSON.stringify(mediaItemsArray)
+            );
+            // Clean up legacy storage
+            await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_1);
+            await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_2);
+          }
+        } else if (isFirstLoad) {
+          // First time loading: Use defaults
+          mediaItemsArray = [DEFAULT_MEDIA_1, DEFAULT_MEDIA_2];
+        }
+
+        // Set the media items array
+        setSelectedMediaItems(mediaItemsArray);
+
+        // Parse stored cast members - only use defaults on first load
         const storedCastMember1 = storedCastMember1String
           ? JSON.parse(storedCastMember1String)
           : isFirstLoad
@@ -273,16 +312,14 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           ? DEFAULT_ACTOR_2
           : null;
 
-        // Update state with stored values
-        setSelectedMediaItem1Internal(storedMediaItem1);
-        setSelectedMediaItem2Internal(storedMediaItem2);
+        // Update cast member state
         setSelectedCastMember1Internal(storedCastMember1);
         setSelectedCastMember2Internal(storedCastMember2);
       } catch (error) {
         console.error("Error loading stored selections:", error);
         // Fall back to defaults in case of error
-        setSelectedMediaItem1Internal(DEFAULT_MEDIA_1);
-        setSelectedMediaItem2Internal(DEFAULT_MEDIA_2);
+        const defaultArray = [DEFAULT_MEDIA_1, DEFAULT_MEDIA_2];
+        setSelectedMediaItems(defaultArray);
         setSelectedCastMember1Internal(DEFAULT_ACTOR_1);
         setSelectedCastMember2Internal(DEFAULT_ACTOR_2);
       } finally {
@@ -293,36 +330,15 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     loadStoredData();
   }, []);
 
-  // Wrapper methods to persist data to AsyncStorage
-  const setSelectedMediaItem1 = async (media: MediaItem | null) => {
-    setSelectedMediaItem1Internal(media);
+  // Helper function to save media items array to storage
+  const saveMediaItemsToStorage = async (mediaItems: MediaItem[]) => {
     try {
-      if (media) {
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.MEDIA_ITEM_1,
-          JSON.stringify(media)
-        );
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_1);
-      }
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SELECTED_MEDIA_ITEMS,
+        JSON.stringify(mediaItems)
+      );
     } catch (error) {
-      console.error("Error storing selectedMediaItem1:", error);
-    }
-  };
-
-  const setSelectedMediaItem2 = async (media: MediaItem | null) => {
-    setSelectedMediaItem2Internal(media);
-    try {
-      if (media) {
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.MEDIA_ITEM_2,
-          JSON.stringify(media)
-        );
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_2);
-      }
-    } catch (error) {
-      console.error("Error storing selectedMediaItem2:", error);
+      console.error("Error storing selectedMediaItems:", error);
     }
   };
 
@@ -566,7 +582,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     if (!isLoading) {
       fetchCastData();
     }
-  }, [selectedMediaItem1, selectedMediaItem2, isLoading]);
+  }, [selectedMediaItems.length, isLoading]); // Only depend on length, not the entire array
 
   // Fetch actor filmography whenever selected actors change - only after loading complete
   useEffect(() => {
@@ -578,7 +594,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         selectedCastMember2?.name
       );
     }
-  }, [selectedCastMember1, selectedCastMember2, isLoading]);
+  }, [selectedCastMember1?.id, selectedCastMember2?.id, isLoading]); // Only depend on IDs
 
   const getCredits = async (
     actorId: number
@@ -840,25 +856,20 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     setCastError("");
 
     // Case 1: No media selected
-    if (!selectedMediaItem1 && !selectedMediaItem2) {
+    if (selectedMediaItems.length === 0) {
       setDisplayMode("comparison");
       return;
     }
 
     // Case 2: Only one media item selected
-    if (
-      (selectedMediaItem1 && !selectedMediaItem2) ||
-      (!selectedMediaItem1 && selectedMediaItem2)
-    ) {
+    if (selectedMediaItems.length === 1) {
       setDisplayMode("single");
-      const activeMedia = selectedMediaItem1 || selectedMediaItem2;
-
-      if (!activeMedia) return; // TypeScript safety
+      const activeMedia = selectedMediaItems[0];
 
       setCastLoading(true);
 
       try {
-        // Get cast data using our new getCast function
+        // Get cast data using our getCast function
         const { results: castResults, error: castError } = await getCast(
           activeMedia.id,
           activeMedia.media_type
@@ -871,7 +882,6 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         if (castResults.length > 0) {
           // For single media, create pairs where both entries are the same person
-          // This keeps the 2D structure consistent across different use cases
           const personPairs: [Person, Person][] = castResults.map((person) => [
             person,
             { ...person }, // Create a copy for the second position
@@ -894,69 +904,111 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
       return;
     }
 
-    // Case 3: Both media items selected - find common cast
+    // Case 3: Multiple media items selected - find common cast across ALL items
     setDisplayMode("comparison");
+    setCastLoading(true);
 
-    if (selectedMediaItem1 && selectedMediaItem2) {
-      setCastLoading(true);
+    try {
+      // Get cast for all media items
+      const castResponses = await Promise.all(
+        selectedMediaItems.map((media) => getCast(media.id, media.media_type))
+      );
 
-      try {
-        // Get cast for both media items using our getCast function
-        const [media1Response, media2Response] = await Promise.all([
-          getCast(selectedMediaItem1.id, selectedMediaItem1.media_type),
-          getCast(selectedMediaItem2.id, selectedMediaItem2.media_type),
-        ]);
-
-        if (media1Response.error) {
-          setCastError(`Error with first media: ${media1Response.error}`);
-          return;
-        }
-
-        if (media2Response.error) {
-          setCastError(`Error with second media: ${media2Response.error}`);
-          return;
-        }
-
-        const cast1 = media1Response.results;
-        const cast2 = media2Response.results;
-
-        if (cast1.length === 0 || cast2.length === 0) {
-          setCastError("Cast information not available for one or both titles");
-          return;
-        }
-
-        // Create a map of people from first media for quick lookup
-        const cast1Map = new Map<number, Person>();
-        cast1.forEach((person) => {
-          cast1Map.set(person.id, person);
-        });
-
-        // Find matching people and create pairs
-        const matchingPairs: [Person, Person][] = [];
-
-        cast2.forEach((person2) => {
-          if (cast1Map.has(person2.id)) {
-            const person1 = cast1Map.get(person2.id)!;
-            matchingPairs.push([person1, person2]);
-          }
-        });
-
-        if (matchingPairs.length > 0) {
-          // Sort by popularity of the first person in each pair
-          setCastMembers(
-            matchingPairs.sort(
-              (a, b) => (b[0].popularity || 0) - (a[0].popularity || 0)
-            )
-          );
-        } else {
-          setCastError("No common cast or crew members found");
-        }
-      } catch (err) {
-        setCastError("Error fetching cast information");
-        console.error(err);
-      } finally {
-        setCastLoading(false);
+      // Check for errors
+      const errorResponse = castResponses.find((response) => response.error);
+      if (errorResponse) {
+        setCastError(`Error fetching cast: ${errorResponse.error}`);
+        return;
       }
+
+      const allCastArrays = castResponses.map((response) => response.results);
+
+      // Check if any cast arrays are empty
+      if (allCastArrays.some((cast) => cast.length === 0)) {
+        setCastError("Cast information not available for one or more titles");
+        return;
+      }
+
+      // Find people who appear in ALL media items
+      const firstCast = allCastArrays[0];
+      const commonPeople: [Person, Person][] = [];
+
+      firstCast.forEach((person1) => {
+        // Check if this person appears in ALL other media items
+        const appearsInAll = allCastArrays
+          .slice(1)
+          .every((otherCast) =>
+            otherCast.some((otherPerson) => otherPerson.id === person1.id)
+          );
+
+        if (appearsInAll) {
+          // Create an enhanced person object that contains info from all media items
+          const enhancedPerson1 = { ...person1 };
+          const enhancedPerson2 = { ...person1 }; // Start with person1 as base
+
+          // Collect all character and job information across all media items
+          const allCharacters: string[] = [];
+          const allJobs: string[] = [];
+          const allDepartments: Set<string> = new Set();
+
+          // Go through each media item and collect this person's info
+          allCastArrays.forEach((castArray, mediaIndex) => {
+            const personInThisMedia = castArray.find(
+              (p) => p.id === person1.id
+            );
+            if (personInThisMedia) {
+              if (personInThisMedia.character) {
+                allCharacters.push(
+                  `${selectedMediaItems[mediaIndex].name}: ${personInThisMedia.character}`
+                );
+              }
+              if (personInThisMedia.jobs && personInThisMedia.jobs.length > 0) {
+                personInThisMedia.jobs.forEach((job) => {
+                  allJobs.push(
+                    `${selectedMediaItems[mediaIndex].name}: ${job}`
+                  );
+                });
+              }
+              if (personInThisMedia.departments) {
+                personInThisMedia.departments.forEach((dept) =>
+                  allDepartments.add(dept)
+                );
+              }
+            }
+          });
+
+          // Store all the detailed information in the enhanced person objects
+          enhancedPerson1.allMediaCharacters = allCharacters;
+          enhancedPerson1.allMediaJobs = allJobs;
+          enhancedPerson1.allMediaDepartments = Array.from(allDepartments);
+
+          enhancedPerson2.allMediaCharacters = allCharacters;
+          enhancedPerson2.allMediaJobs = allJobs;
+          enhancedPerson2.allMediaDepartments = Array.from(allDepartments);
+
+          commonPeople.push([enhancedPerson1, enhancedPerson2]);
+        }
+      });
+
+      if (commonPeople.length > 0) {
+        // Sort by popularity of the first person in each pair
+        setCastMembers(
+          commonPeople.sort(
+            (a, b) => (b[0].popularity || 0) - (a[0].popularity || 0)
+          )
+        );
+      } else {
+        setCastError(
+          selectedMediaItems.length === 2
+            ? "No common cast or crew members found"
+            : `No cast or crew members found across all ${selectedMediaItems.length} titles`
+        );
+      }
+    } catch (err) {
+      setCastError("Error fetching cast information");
+      console.error(err);
+    } finally {
+      setCastLoading(false);
     }
   };
 
@@ -1198,12 +1250,112 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
+  // Array management functions - now the primary interface
+  const addMediaItem = useCallback((media: MediaItem) => {
+    setSelectedMediaItems((prev) => {
+      // Check if media already exists in array
+      const existingIndex = prev.findIndex(
+        (item) => item.id === media.id && item.media_type === media.media_type
+      );
+
+      let newArray: MediaItem[];
+
+      if (existingIndex !== -1) {
+        // Replace existing item
+        newArray = [...prev];
+        newArray[existingIndex] = media;
+      } else {
+        // Add new item
+        newArray = [...prev, media];
+      }
+
+      // Save to storage
+      saveMediaItemsToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const removeMediaItem = useCallback((mediaId: number) => {
+    setSelectedMediaItems((prev) => {
+      const newArray = prev.filter((item) => item.id !== mediaId);
+
+      // Save to storage
+      saveMediaItemsToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const clearMediaItems = useCallback(() => {
+    const emptyArray: MediaItem[] = [];
+
+    setSelectedMediaItems(emptyArray);
+
+    // Save to storage
+    saveMediaItemsToStorage(emptyArray);
+  }, []);
+
+  const reorderMediaItems = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      setSelectedMediaItems((prev) => {
+        if (
+          fromIndex < 0 ||
+          fromIndex >= prev.length ||
+          toIndex < 0 ||
+          toIndex >= prev.length
+        ) {
+          return prev; // Invalid indices
+        }
+
+        const newArray = [...prev];
+        const [movedItem] = newArray.splice(fromIndex, 1);
+        newArray.splice(toIndex, 0, movedItem);
+
+        // Save to storage
+        saveMediaItemsToStorage(newArray);
+
+        return newArray;
+      });
+    },
+    []
+  );
+
+  const updateMediaItem = useCallback((index: number, media: MediaItem) => {
+    setSelectedMediaItems((prev) => {
+      if (index < 0 || index >= prev.length) {
+        return prev; // Invalid index
+      }
+
+      const newArray = [...prev];
+      newArray[index] = media;
+
+      // Save to storage
+      saveMediaItemsToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const getMediaItemAtIndex = useCallback(
+    (index: number): MediaItem | null => {
+      return selectedMediaItems[index] || null;
+    },
+    [selectedMediaItems]
+  );
+
   // Value object that will be passed to consumers
-  const value = {
-    selectedMediaItem1,
-    selectedMediaItem2,
-    setSelectedMediaItem1,
-    setSelectedMediaItem2,
+  const value: FilmContextType = {
+    // Array-based media selection (primary)
+    selectedMediaItems,
+    addMediaItem,
+    removeMediaItem,
+    clearMediaItems,
+    reorderMediaItems,
+    updateMediaItem,
+    getMediaItemAtIndex,
+
+    // Cast member selection
     selectedCastMember1,
     selectedCastMember2,
     setSelectedCastMember1,

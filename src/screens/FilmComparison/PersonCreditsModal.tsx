@@ -15,18 +15,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 
-// Update props to use MediaItem and generic terminology
+// Update props to remove legacy media selection
 interface PersonCreditsModalProps {
   personId: number;
   personName?: string;
-  onSelectMedia1: (media: MediaItem) => void;
-  onSelectMedia2: (media: MediaItem) => void;
   onSelectPerson1?: (person: Person) => void;
   onSelectPerson2?: (person: Person) => void;
   isVisible: boolean;
   onClose: () => void;
-  selectedMedia1?: MediaItem | null;
-  selectedMedia2?: MediaItem | null;
   selectedPerson1?: Person | null;
   selectedPerson2?: Person | null;
   personProfilePath?: string;
@@ -44,20 +40,17 @@ type ExtendedMediaItem = MediaItem & {
 const PersonCreditsModal = ({
   personId,
   personName = "Person",
-  onSelectMedia1,
-  onSelectMedia2,
   onSelectPerson1,
   onSelectPerson2,
   isVisible,
   onClose,
-  selectedMedia1,
-  selectedMedia2,
   selectedPerson1,
   selectedPerson2,
   personProfilePath,
 }: PersonCreditsModalProps) => {
   const { colors } = useTheme();
-  const { getCredits } = useFilmContext();
+  const { getCredits, selectedMediaItems, addMediaItem, updateMediaItem } =
+    useFilmContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -69,11 +62,23 @@ const PersonCreditsModal = ({
   const [showPersonOptions, setShowPersonOptions] = useState(false);
   const [allCredits, setAllCredits] = useState<ExtendedMediaItem[]>([]);
 
+  // Determine if we should show the filter controls
+  const shouldShowFilters = allCredits.length > 0;
+
   // Updated checks for person selection
   const isSelectedAsPerson1 =
     !!selectedPerson1 && selectedPerson1.id === personId;
   const isSelectedAsPerson2 =
     !!selectedPerson2 && selectedPerson2.id === personId;
+
+  // Only need array-based media selection check
+  const isMediaAlreadySelected = useCallback(
+    (mediaId: number): { isSelected: boolean; index: number } => {
+      const index = selectedMediaItems.findIndex((item) => item.id === mediaId);
+      return { isSelected: index !== -1, index };
+    },
+    [selectedMediaItems]
+  );
 
   useEffect(() => {
     if (isVisible && personId) {
@@ -172,23 +177,25 @@ const PersonCreditsModal = ({
     setShowPersonOptions(true);
   };
 
-  // Updated to use media instead of film terminology
+  // Simplified media selection handler - only array-based
   const handleSelectOption = useCallback(
-    (option: "media1" | "media2") => {
+    (option: "addNew" | "replaceAtIndex", replaceIndex?: number) => {
       if (selectedItem) {
-        // Pass the MediaItem directly without conversion
-        if (option === "media1") {
-          onSelectMedia1(selectedItem);
-        } else {
-          onSelectMedia2(selectedItem);
+        if (option === "addNew") {
+          // Add as new item to array
+          addMediaItem(selectedItem);
+        } else if (option === "replaceAtIndex" && replaceIndex !== undefined) {
+          // Replace specific item in array
+          updateMediaItem(replaceIndex, selectedItem);
         }
+
         // Close modal and reset states
         onClose();
         setShowItemOptions(false);
         setSelectedItem(null);
       }
     },
-    [selectedItem, onSelectMedia1, onSelectMedia2, onClose]
+    [selectedItem, addMediaItem, updateMediaItem, onClose]
   );
 
   const handleCloseModal = () => {
@@ -351,13 +358,15 @@ const PersonCreditsModal = ({
   const renderMediaItem = useCallback(
     ({ item }: { item: ExtendedMediaItem }) => {
       const isMovie = item.media_type === "movie";
-      // Use the correct property based on media type
       const title = isMovie ? item.title : item.name;
       const releaseDate = isMovie ? item.release_date : item.first_air_date;
       const year = releaseDate
         ? new Date(releaseDate).getFullYear().toString()
         : "Unknown";
       const isCrew = item.role_type === "crew";
+
+      // Check if this item is in the selected array
+      const { isSelected, index } = isMediaAlreadySelected(item.id);
 
       return (
         <TouchableOpacity
@@ -366,8 +375,7 @@ const PersonCreditsModal = ({
             selectedItem?.id === item.id
               ? styles(colors).selectedFilmItem
               : null,
-            selectedMedia1?.id === item.id ? styles(colors).film1Item : null,
-            selectedMedia2?.id === item.id ? styles(colors).film2Item : null,
+            isSelected ? styles(colors).arraySelectedItem : null,
           ]}
           onPress={() => handleItemPress(item)}
           activeOpacity={0.7}
@@ -414,37 +422,115 @@ const PersonCreditsModal = ({
             )}
           </View>
 
-          {/* Indicator labels */}
-          {selectedMedia1?.id === item.id && (
-            <View style={styles(colors).filmIndicator}>
-              <Text style={styles(colors).indicatorText}>Media 1</Text>
-            </View>
-          )}
-          {selectedMedia2?.id === item.id && (
-            <View
-              style={[
-                styles(colors).filmIndicator,
-                {
-                  backgroundColor: colors.primary || colors.primary || "orange",
-                },
-              ]}
-            >
-              <Text style={styles(colors).indicatorText}>Media 2</Text>
+          {/* Show indicators for array selections */}
+          {isSelected && (
+            <View style={styles(colors).arrayIndicator}>
+              <Text style={styles(colors).indicatorText}>#{index + 1}</Text>
             </View>
           )}
         </TouchableOpacity>
       );
     },
-    [colors, selectedItem, selectedMedia1, selectedMedia2, handleItemPress]
+    [colors, selectedItem, handleItemPress, isMediaAlreadySelected]
   );
 
-  // Updated to use MediaItem properties
-  const getMediaTitle = (media: MediaItem): string => {
-    return media.media_type === "movie" ? media.title : media.name;
-  };
+  // Simplified media selection overlay
+  const renderMediaSelectionOverlay = () => {
+    if (!showItemOptions || !selectedItem) return null;
 
-  // Determine if we should show the filter controls
-  const shouldShowFilters = allCredits.length > 0;
+    const { isSelected, index } = isMediaAlreadySelected(selectedItem.id);
+    const mediaTitle =
+      selectedItem.media_type === "movie"
+        ? selectedItem.title || selectedItem.name
+        : selectedItem.name;
+
+    return (
+      <View style={styles(colors).optionsOverlay}>
+        <View style={styles(colors).optionsContainer}>
+          <Text style={styles(colors).optionsTitle}>
+            {isSelected
+              ? `"${mediaTitle}" is already selected`
+              : `Add "${mediaTitle}"`}
+          </Text>
+
+          {isSelected ? (
+            // Media is already selected - show update option
+            <>
+              <Text style={styles(colors).alreadySelectedText}>
+                This title is already in your selection at position {index + 1}.
+              </Text>
+
+              <TouchableOpacity
+                style={styles(colors).optionButton}
+                onPress={() => handleSelectOption("replaceAtIndex", index)}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles(colors).optionText}>
+                  Update at position {index + 1}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Media is not selected - show add/replace options
+            <>
+              {/* Option to add as new */}
+              <TouchableOpacity
+                style={styles(colors).primaryOptionButton}
+                onPress={() => handleSelectOption("addNew")}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles(colors).primaryOptionText}>
+                  Add as new selection
+                </Text>
+              </TouchableOpacity>
+
+              {/* Show existing selections for replacement */}
+              {selectedMediaItems.length > 0 && (
+                <>
+                  <Text style={styles(colors).sectionTitle}>
+                    Or replace existing:
+                  </Text>
+
+                  {selectedMediaItems.map((media, index) => (
+                    <TouchableOpacity
+                      key={`${media.id}-${index}`}
+                      style={styles(colors).optionButton}
+                      onPress={() =>
+                        handleSelectOption("replaceAtIndex", index)
+                      }
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={20}
+                        color={colors.text}
+                      />
+                      <Text style={styles(colors).optionText}>
+                        Replace #{index + 1}: {media.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles(colors).cancelButton}
+            onPress={() => {
+              setShowItemOptions(false);
+              setSelectedItem(null);
+            }}
+          >
+            <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <Modal
@@ -566,50 +652,10 @@ const PersonCreditsModal = ({
             )}
           </View>
 
-          {/* Media selection options overlay - updated terminology */}
-          {showItemOptions && selectedItem && (
-            <View style={styles(colors).optionsOverlay}>
-              <View style={styles(colors).optionsContainer}>
-                <Text style={styles(colors).optionsTitle}>
-                  Choose where to add "{getMediaTitle(selectedItem)}"
-                </Text>
+          {/* Simplified media selection overlay */}
+          {renderMediaSelectionOverlay()}
 
-                <TouchableOpacity
-                  style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("media1")}
-                >
-                  <Ionicons name="film-outline" size={20} color={colors.text} />
-                  <Text style={styles(colors).optionText}>
-                    Replace Media 1{" "}
-                    {selectedMedia1 ? `(${getMediaTitle(selectedMedia1)})` : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("media2")}
-                >
-                  <Ionicons name="film-outline" size={20} color={colors.text} />
-                  <Text style={styles(colors).optionText}>
-                    Replace Media 2{" "}
-                    {selectedMedia2 ? `(${getMediaTitle(selectedMedia2)})` : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).cancelButton}
-                  onPress={() => {
-                    setShowItemOptions(false);
-                    setSelectedItem(null);
-                  }}
-                >
-                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
-          {/* Person selection overlay - updated terminology */}
+          {/* Person selection overlay - unchanged */}
           {showPersonOptions && (
             <View style={styles(colors).optionsOverlay}>
               <View style={styles(colors).optionsContainer}>
@@ -678,6 +724,7 @@ const PersonCreditsModal = ({
   );
 };
 
+// Remove styles related to legacy media selections
 const styles = (colors: any) =>
   StyleSheet.create({
     modalOverlay: {
@@ -792,27 +839,6 @@ const styles = (colors: any) =>
     selectedFilmItem: {
       backgroundColor: colors.selectedItem,
     },
-    film1Item: {
-      borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
-    },
-    film2Item: {
-      borderLeftWidth: 4,
-      borderLeftColor: colors.secondary || colors.accent || "orange",
-    },
-    filmIndicator: {
-      backgroundColor: colors.primary,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      borderRadius: 4,
-      marginLeft: 8,
-      justifyContent: "center",
-    },
-    indicatorText: {
-      color: "white",
-      fontSize: 10,
-      fontWeight: "bold",
-    },
     poster: {
       width: 45,
       height: 68,
@@ -903,6 +929,21 @@ const styles = (colors: any) =>
       marginBottom: 12,
       backgroundColor: colors.surface || colors.card || colors.background,
     },
+    primaryOptionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      marginBottom: 12,
+    },
+    primaryOptionText: {
+      fontSize: 14,
+      color: "#fff",
+      marginLeft: 12,
+      fontWeight: "600",
+    },
     optionText: {
       fontSize: 14,
       color: colors.text,
@@ -966,6 +1007,38 @@ const styles = (colors: any) =>
       flexDirection: "row",
       alignItems: "center",
       marginLeft: 6,
+    },
+    arraySelectedItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.accent || "#9C27B0", // Purple for array selections
+    },
+    arrayIndicator: {
+      backgroundColor: colors.accent || "#9C27B0",
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 4,
+      marginLeft: 8,
+      justifyContent: "center",
+    },
+    indicatorText: {
+      color: "white",
+      fontSize: 10,
+      fontWeight: "bold",
+    },
+    alreadySelectedText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 12,
+      fontStyle: "italic",
+    },
+    sectionTitle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "600",
+      marginTop: 8,
+      marginBottom: 4,
+      textAlign: "center",
     },
   });
 

@@ -40,10 +40,11 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   } = useSavedSearches();
 
   const {
-    setSelectedMediaItem1,
-    setSelectedMediaItem2,
     setSelectedCastMember1,
     setSelectedCastMember2,
+    // Use array-based media selection instead of individual items
+    clearMediaItems,
+    addMediaItem,
   } = useFilmContext();
 
   // Local state
@@ -96,8 +97,15 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   const handleLoadSearch = (search: SavedSearch) => {
     if (search.type === "media") {
       // Load media comparison - only update media items, don't touch people
-      setSelectedMediaItem1(search.mediaItem1 || null);
-      setSelectedMediaItem2(search.mediaItem2 || null);
+      // Clear current selections first
+      clearMediaItems();
+
+      // Add each media item from the array to the current selection
+      if (search.mediaItems && search.mediaItems.length > 0) {
+        search.mediaItems.forEach((mediaItem) => {
+          addMediaItem(mediaItem);
+        });
+      }
       // Don't clear selected people - let them remain as they are
 
       // Navigate to compare by media tab
@@ -117,6 +125,35 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
     }
 
     // Remove the success alert - navigation indicates success
+  };
+
+  // Function to load a saved search and apply it to the current context
+  const loadSavedSearch = async (search: SavedSearch) => {
+    try {
+      if (search.type === "media") {
+        // Clear current selections first
+        clearMediaItems();
+
+        // Add each media item from the array to the current selection
+        if (search.mediaItems && search.mediaItems.length > 0) {
+          search.mediaItems.forEach((mediaItem) => {
+            addMediaItem(mediaItem);
+          });
+        }
+      } else if (search.type === "person") {
+        setSelectedCastMember1(search.person1 || null);
+        setSelectedCastMember2(search.person2 || null);
+      }
+
+      // Show success message
+      Alert.alert(
+        "Search Loaded",
+        `"${search.name}" has been loaded successfully.`
+      );
+    } catch (error) {
+      console.error("Error loading saved search:", error);
+      Alert.alert("Error", "Failed to load the saved search.");
+    }
   };
 
   // Handle deleting a search
@@ -256,13 +293,40 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
     );
   };
 
-  // Get search preview text
+  // Helper function to get media display text - simplified to only use array
+  const getMediaDisplayText = (search: SavedSearch): string => {
+    if (search.type !== "media") return "";
+
+    if (search.mediaItems && search.mediaItems.length > 0) {
+      if (search.mediaItems.length === 1) {
+        return search.mediaItems[0].name;
+      } else if (search.mediaItems.length === 2) {
+        return `${search.mediaItems[0].name} & ${search.mediaItems[1].name}`;
+      } else {
+        return `${search.mediaItems[0].name} + ${
+          search.mediaItems.length - 1
+        } more`;
+      }
+    }
+
+    return "Empty media comparison";
+  };
+
+  // Get search preview text - simplified to only use array
   const getSearchPreview = (search: SavedSearch) => {
     if (search.type === "media") {
-      const items = [];
-      if (search.mediaItem1) items.push(search.mediaItem1.name);
-      if (search.mediaItem2) items.push(search.mediaItem2.name);
-      return items.join(" & ") || "Empty media comparison";
+      if (search.mediaItems && search.mediaItems.length > 0) {
+        if (search.mediaItems.length === 1) {
+          return search.mediaItems[0].name;
+        } else if (search.mediaItems.length === 2) {
+          return `${search.mediaItems[0].name} & ${search.mediaItems[1].name}`;
+        } else {
+          return `${search.mediaItems[0].name} + ${
+            search.mediaItems.length - 1
+          } more`;
+        }
+      }
+      return "Empty media comparison";
     } else {
       const people = [];
       if (search.person1) people.push(search.person1.name);

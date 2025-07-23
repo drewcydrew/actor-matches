@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,8 +8,8 @@ import {
   TouchableOpacity,
   FlatList,
 } from "react-native";
-import { useFilmContext } from "../../context/FilmContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useFilmContext } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Person } from "../../types/types";
 
@@ -24,10 +24,8 @@ interface PersonDisplayProps {
 const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
   const { colors } = useTheme();
   const {
-    selectedMediaItem1,
-    selectedMediaItem2,
-    setSelectedMediaItem1,
-    setSelectedMediaItem2,
+    selectedMediaItems,
+    clearMediaItems,
     castMembers,
     castLoading,
     castError,
@@ -73,9 +71,8 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
 
   // Memoize callbacks to prevent unnecessary re-renders
   const handleClearMedia = useCallback(() => {
-    setSelectedMediaItem1(null);
-    setSelectedMediaItem2(null);
-  }, [setSelectedMediaItem1, setSelectedMediaItem2]);
+    clearMediaItems();
+  }, [clearMediaItems]);
 
   const handleFilterChange = useCallback((mode: FilterMode) => {
     setFilterMode(mode);
@@ -83,19 +80,70 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
 
   const handleActorPress = useCallback(
     (person: Person) => {
-      if (onActorSelect && (selectedMediaItem1 || selectedMediaItem2)) {
+      if (onActorSelect && selectedMediaItems.length > 0) {
         onActorSelect(person);
       }
     },
-    [onActorSelect, selectedMediaItem1, selectedMediaItem2]
+    [onActorSelect, selectedMediaItems.length]
   );
 
   // Memoize the key extractor
   const keyExtractor = useCallback((item: [Person, Person], index: number) => {
-    return `${item[0].id}-${item[0].roles.join("-")}-${index}`;
+    return `${item[0].id}-${index}`;
   }, []);
 
-  // Memoize the render item function
+  // Get role type badge for people - updated to handle combined roles properly
+  const getRoleTypeBadge = (roles: ("cast" | "crew")[]) => {
+    if (roles.length === 0) return null;
+
+    // If person has both roles, show a combined badge
+    if (roles.includes("cast") && roles.includes("crew")) {
+      return (
+        <View style={styles(colors).combinedRoleBadge}>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginRight: 4 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+          </View>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single role badge
+    const isCrew = roles.includes("crew");
+    return (
+      <View
+        style={[
+          styles(colors).roleTypeBadge,
+          { backgroundColor: isCrew ? colors.secondary : colors.primary },
+        ]}
+      >
+        <Ionicons
+          name={isCrew ? "construct-outline" : "people-outline"}
+          size={10}
+          color="#fff"
+        />
+        <Text style={styles(colors).roleTypeBadgeText}>
+          {isCrew ? "CREW" : "CAST"}
+        </Text>
+      </View>
+    );
+  };
+
+  // Render person item function
   const renderPersonItem = useCallback(
     ({ item, index }: { item: [Person, Person]; index: number }) => {
       const [person1, person2] = item;
@@ -114,13 +162,9 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               : styles(colors).castItem,
           ]}
           onPress={() => handleActorPress(person1)}
-          disabled={
-            !onActorSelect || (!selectedMediaItem1 && !selectedMediaItem2)
-          }
+          disabled={!onActorSelect || selectedMediaItems.length === 0}
           activeOpacity={
-            onActorSelect && (selectedMediaItem1 || selectedMediaItem2)
-              ? 0.7
-              : 1
+            onActorSelect && selectedMediaItems.length > 0 ? 0.7 : 1
           }
         >
           <View style={styles(colors).actorItemContent}>
@@ -144,58 +188,73 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
 
               {/* Cast character information */}
               {hasCast && (
-                <View>
-                  {displayMode === "comparison" &&
-                  selectedMediaItem1 &&
-                  selectedMediaItem2 ? (
-                    <>
-                      {person1.character && (
-                        <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem1.name}": ${person1.character}`}
-                        </Text>
-                      )}
-                      {person2.character && (
-                        <Text style={styles(colors).character}>
-                          {`in "${selectedMediaItem2.name}": ${person2.character}`}
-                        </Text>
-                      )}
-                    </>
-                  ) : (
-                    // Single media mode or only one media selected
+                <View style={styles(colors).roleSection}>
+                  {selectedMediaItems.length === 1 ? (
+                    // Single media mode
                     person1.character && (
                       <Text style={styles(colors).character}>
                         {`as: ${person1.character}`}
                       </Text>
                     )
+                  ) : (
+                    // Multiple media mode - show character info for ALL titles using the detailed data
+                    <>
+                      {person1.allMediaCharacters &&
+                      person1.allMediaCharacters.length > 0 ? (
+                        person1.allMediaCharacters.map(
+                          (characterInfo, characterIndex) => (
+                            <Text
+                              key={`cast-${characterIndex}`}
+                              style={styles(colors).character}
+                            >
+                              {`in ${characterInfo}`}
+                            </Text>
+                          )
+                        )
+                      ) : (
+                        // Fallback if detailed info not available
+                        <Text style={styles(colors).character}>
+                          {`Appears in all ${selectedMediaItems.length} titles`}
+                        </Text>
+                      )}
+                    </>
                   )}
                 </View>
               )}
 
               {/* Crew information */}
               {hasCrew && (
-                <View>
+                <View style={styles(colors).roleSection}>
                   <Text style={styles(colors).department}>
-                    {person1.departments?.join(", ") || "Crew"}
+                    {person1.allMediaDepartments?.join(", ") ||
+                      person1.departments?.join(", ") ||
+                      "Crew"}
                   </Text>
-                  {displayMode === "comparison" &&
-                  selectedMediaItem1 &&
-                  selectedMediaItem2 ? (
-                    <>
-                      <Text style={styles(colors).character}>
-                        {`in "${selectedMediaItem1.name}": ${
-                          person1.jobs?.join(", ") || "Unknown job"
-                        }`}
-                      </Text>
-                      <Text style={styles(colors).character}>
-                        {`in "${selectedMediaItem2.name}": ${
-                          person2.jobs?.join(", ") || "Unknown job"
-                        }`}
-                      </Text>
-                    </>
-                  ) : (
+                  {selectedMediaItems.length === 1 ? (
+                    // Single media mode
                     <Text style={styles(colors).character} numberOfLines={2}>
                       {person1.jobs?.join(", ") || "Unknown job"}
                     </Text>
+                  ) : (
+                    // Multiple media mode - show job info for ALL titles using the detailed data
+                    <>
+                      {person1.allMediaJobs &&
+                      person1.allMediaJobs.length > 0 ? (
+                        person1.allMediaJobs.map((jobInfo, jobIndex) => (
+                          <Text
+                            key={`crew-${jobIndex}`}
+                            style={styles(colors).character}
+                          >
+                            {`in ${jobInfo}`}
+                          </Text>
+                        ))
+                      ) : (
+                        // Fallback if detailed info not available
+                        <Text style={styles(colors).character}>
+                          {`Works on all ${selectedMediaItems.length} titles`}
+                        </Text>
+                      )}
+                    </>
                   )}
                 </View>
               )}
@@ -204,14 +263,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
         </TouchableOpacity>
       );
     },
-    [
-      colors,
-      displayMode,
-      selectedMediaItem1,
-      selectedMediaItem2,
-      handleActorPress,
-      onActorSelect,
-    ]
+    [colors, selectedMediaItems, handleActorPress, onActorSelect]
   );
 
   // Get appropriate media type text
@@ -220,78 +272,24 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
     return mediaItem.media_type === "tv" ? "TV show" : "film";
   };
 
-  // Title text based on media selection state
+  // Update title text to work with array
   const getTitleText = () => {
-    if (!selectedMediaItem1 && !selectedMediaItem2) {
+    if (selectedMediaItems.length === 0) {
       return "Select a title to see its cast";
-    } else if (selectedMediaItem1 && !selectedMediaItem2) {
-      const type1 = getMediaTypeText(selectedMediaItem1);
-      return `Cast of "${selectedMediaItem1.name}" (${type1})`;
-    } else if (!selectedMediaItem1 && selectedMediaItem2) {
-      const type2 = getMediaTypeText(selectedMediaItem2);
-      return `Cast of "${selectedMediaItem2.name}" (${type2})`;
-    } else if (selectedMediaItem1 && selectedMediaItem2) {
-      const type1 = getMediaTypeText(selectedMediaItem1);
-      const type2 = getMediaTypeText(selectedMediaItem2);
-      return `Common cast in "${selectedMediaItem1.name}" (${type1}) and "${selectedMediaItem2.name}" (${type2})`;
+    } else if (selectedMediaItems.length === 1) {
+      const type = getMediaTypeText(selectedMediaItems[0]);
+      return `Cast of "${selectedMediaItems[0].name}" (${type})`;
+    } else if (selectedMediaItems.length === 2) {
+      const type1 = getMediaTypeText(selectedMediaItems[0]);
+      const type2 = getMediaTypeText(selectedMediaItems[1]);
+      return `Common cast in "${selectedMediaItems[0].name}" (${type1}) and "${selectedMediaItems[1].name}" (${type2})`;
     } else {
-      return "Cast Display";
+      return `Common cast across ${selectedMediaItems.length} titles`;
     }
   };
 
-  // Get role type badge
-  const getRoleTypeBadge = (roles: ("cast" | "crew")[]) => {
-    if (roles.length === 0) return null;
-
-    // If person has both roles, show a combined badge
-    if (roles.includes("cast") && roles.includes("crew")) {
-      return (
-        <View style={styles(colors).combinedRoleBadge}>
-          <View
-            style={[
-              styles(colors).roleTypeBadge,
-              { backgroundColor: colors.primary, marginRight: 4 },
-            ]}
-          >
-            <Ionicons name="people-outline" size={10} color="#fff" />
-            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
-          </View>
-          <View
-            style={[
-              styles(colors).roleTypeBadge,
-              { backgroundColor: colors.secondary },
-            ]}
-          >
-            <Ionicons name="construct-outline" size={10} color="#fff" />
-            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
-          </View>
-        </View>
-      );
-    }
-
-    // Single role badge
-    const isCrew = roles.includes("crew");
-    return (
-      <View
-        style={[
-          styles(colors).roleTypeBadge,
-          { backgroundColor: isCrew ? colors.secondary : colors.primary },
-        ]}
-      >
-        <Ionicons
-          name={isCrew ? "construct-outline" : "people-outline"}
-          size={12}
-          color="#fff"
-        />
-        <Text style={styles(colors).roleTypeBadgeText}>
-          {isCrew ? "CREW" : "CAST"}
-        </Text>
-      </View>
-    );
-  };
-
-  // Determine if we should show the clear button (when at least one media item is selected)
-  const shouldShowClearButton = selectedMediaItem1 || selectedMediaItem2;
+  // Update clear button condition
+  const shouldShowClearButton = selectedMediaItems.length > 0;
 
   // Determine if we should show the filter controls
   const shouldShowFilters = castMembers.length > 0;
@@ -321,7 +319,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "all" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("all")}
+            onPress={() => handleFilterChange("all")}
           >
             <Text
               style={[
@@ -338,7 +336,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "cast" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("cast")}
+            onPress={() => handleFilterChange("cast")}
           >
             <Text
               style={[
@@ -355,7 +353,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "crew" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("crew")}
+            onPress={() => handleFilterChange("crew")}
           >
             <Text
               style={[
@@ -377,11 +375,11 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
         <View style={styles(colors).castContainer}>
           {filteredPeople.length === 0 && !castError && !castLoading ? (
             <Text style={styles(colors).emptyText}>
-              {!selectedMediaItem1 && !selectedMediaItem2
+              {selectedMediaItems.length === 0
                 ? "Select at least one title above to see cast members"
-                : selectedMediaItem1 && selectedMediaItem2
+                : selectedMediaItems.length >= 2
                 ? filterMode !== "all"
-                  ? `No ${filterMode} members found in both titles`
+                  ? `No ${filterMode} members found in all titles`
                   : "No common cast members found"
                 : filterMode !== "all"
                 ? `No ${filterMode} information available`
@@ -567,6 +565,15 @@ const styles = (colors: any) =>
     },
     list: {
       flex: 1,
+    },
+    roleSection: {
+      marginTop: 2,
+    },
+    additionalCredits: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontStyle: "italic",
+      marginTop: 2,
     },
   });
 

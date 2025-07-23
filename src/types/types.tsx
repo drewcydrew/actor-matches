@@ -2,19 +2,19 @@ export interface Person {
   id: number;
   name: string;
   profile_path?: string;
+  character?: string;
   gender?: number;
   popularity?: number;
   roles: ("cast" | "crew")[]; // Changed from role_type to roles array
+  jobs?: string[];
+  departments?: string[];
   known_for_department?: string; // Optional field for known for department
   known_for?: Array<{ title?: string; name?: string }>;
 
-  // Cast-specific properties (optional for crew)
-  character?: string;
-  //order?: number;
-
-  // Crew-specific properties (optional for cast)
-  jobs?: string[];
-  departments?: string[];
+  // New properties for storing detailed information across all media items
+  allMediaCharacters?: string[]; // Array of "MediaName: Character" strings
+  allMediaJobs?: string[]; // Array of "MediaName: Job" strings
+  allMediaDepartments?: string[]; // Array of department names across all media
 }
 
 export interface BaseMediaItem {

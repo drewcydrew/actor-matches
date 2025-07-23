@@ -25,20 +25,18 @@ const debounce = (func: Function, delay: number) => {
 };
 
 interface MediaSearchProps {
-  onSelectMedia: (media: MediaItem | null) => void;
+  onSelectMedia: (media: MediaItem) => void; // Changed from MediaItem | null to just MediaItem
   initiallyExpanded?: boolean;
   onExpandStateChange?: (isExpanded: boolean) => void;
-  selectedMedia?: MediaItem | null;
 }
 
 const FilmSearch = ({
   onSelectMedia,
   onExpandStateChange,
-  selectedMedia,
 }: MediaSearchProps) => {
   // Get theme colors and film context
   const { colors } = useTheme();
-  const { getMediaItems } = useFilmContext();
+  const { getMediaItems, selectedMediaItems } = useFilmContext(); // Add selectedMediaItems to check for duplicates
 
   // Regular state
   const [searchQuery, setSearchQuery] = useState("");
@@ -99,13 +97,6 @@ const FilmSearch = ({
       setIsAutocompleting(false);
       setError("");
     }
-  };
-
-  // Handle clear media selection
-  const handleClearMedia = (event: any) => {
-    // Stop the event from propagating to parent (which would open the modal)
-    event.stopPropagation();
-    onSelectMedia(null);
   };
 
   // Modal toggle function
@@ -172,17 +163,27 @@ const FilmSearch = ({
       ? new Date(releaseDate).getFullYear().toString()
       : "Unknown";
 
+    // Check if this item is already selected
+    const isAlreadySelected = selectedMediaItems.some(
+      (selectedItem) =>
+        selectedItem.id === item.id &&
+        selectedItem.media_type === item.media_type
+    );
+
     return (
       <TouchableOpacity
         style={[
           styles(colors).mediaItem,
-          selectedMedia?.id === item.id ? styles(colors).selectedMedia : null,
+          isAlreadySelected ? styles(colors).alreadySelectedMedia : null,
         ]}
         onPress={() => {
-          onSelectMedia(item);
-          setIsModalVisible(false); // Close modal after selection
+          if (!isAlreadySelected) {
+            onSelectMedia(item);
+            setIsModalVisible(false); // Close modal after selection
+          }
         }}
-        activeOpacity={0.7}
+        disabled={isAlreadySelected}
+        activeOpacity={isAlreadySelected ? 1 : 0.7}
       >
         {item.poster_path && (
           <Image
@@ -200,48 +201,37 @@ const FilmSearch = ({
               {item.media_type === "tv" ? "TV" : "Movie"}
             </Text>
           </View>
+          {isAlreadySelected && (
+            <Text style={styles(colors).selectedIndicator}>Already added</Text>
+          )}
         </View>
+        {isAlreadySelected && (
+          <View style={styles(colors).checkmark}>
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
 
   // Function to generate header content for the collapsed view
   const getHeaderContent = () => {
-    if (selectedMedia) {
-      const releaseDate =
-        selectedMedia.media_type === "tv"
-          ? selectedMedia.first_air_date
-          : selectedMedia.release_date;
+    const count = selectedMediaItems.length;
 
-      const year = releaseDate
-        ? new Date(releaseDate).getFullYear().toString()
-        : "";
-
+    if (count === 0) {
       return (
-        <View style={styles(colors).collapsedHeader}>
-          {selectedMedia.poster_path && (
-            <Image
-              source={{
-                uri: `https://image.tmdb.org/t/p/w92${selectedMedia.poster_path}`,
-              }}
-              style={styles(colors).headerPoster}
-            />
-          )}
-          <View style={styles(colors).headerTextContainer}>
-            <Text style={styles(colors).headerMediaTitle} numberOfLines={1}>
-              {selectedMedia.name}
-            </Text>
-            {year && (
-              <Text style={styles(colors).headerMediaYear}>
-                {year} -{" "}
-                {selectedMedia.media_type === "tv" ? "TV Show" : "Movie"}
-              </Text>
-            )}
-          </View>
-        </View>
+        <Text style={styles(colors).sectionTitle}>Add movies & TV shows</Text>
       );
+    } else if (count === 1) {
+      return <Text style={styles(colors).sectionTitle}>1 title selected</Text>;
     } else {
-      return <Text style={styles(colors).sectionTitle}>Select a title</Text>;
+      return (
+        <Text style={styles(colors).sectionTitle}>{count} titles selected</Text>
+      );
     }
   };
 
@@ -256,21 +246,12 @@ const FilmSearch = ({
         >
           {getHeaderContent()}
           <View style={styles(colors).actionButtons}>
-            {selectedMedia && (
-              <TouchableOpacity
-                style={styles(colors).clearButton}
-                onPress={handleClearMedia}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            )}
             <View style={styles(colors).collapseButton}>
-              <Ionicons name="search" size={24} color={colors.primary} />
+              <Ionicons
+                name="add-circle-outline"
+                size={24}
+                color={colors.primary}
+              />
             </View>
           </View>
         </TouchableOpacity>
@@ -287,9 +268,7 @@ const FilmSearch = ({
           <View style={styles(colors).modalContent}>
             {/* Modal header */}
             <View style={styles(colors).modalHeader}>
-              <Text style={styles(colors).modalTitle}>
-                {selectedMedia ? "Change selection" : "Search"}
-              </Text>
+              <Text style={styles(colors).modalTitle}>Add Media</Text>
               <TouchableOpacity
                 style={styles(colors).closeButton}
                 onPress={() => setIsModalVisible(false)}
@@ -330,6 +309,16 @@ const FilmSearch = ({
                   <Text style={styles(colors).buttonText}>Search</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Show selected count in modal */}
+              {selectedMediaItems.length > 0 && (
+                <View style={styles(colors).selectedCountContainer}>
+                  <Text style={styles(colors).selectedCountText}>
+                    {selectedMediaItems.length} title
+                    {selectedMediaItems.length !== 1 ? "s" : ""} selected
+                  </Text>
+                </View>
+              )}
 
               {/* Autocomplete suggestions */}
               {isAutocompleting && searchQuery.length >= 2 && (
@@ -379,7 +368,8 @@ const FilmSearch = ({
                       ListEmptyComponent={
                         !error && !loading ? (
                           <Text style={styles(colors).emptyText}>
-                            Search for a movie or TV show to see results
+                            Search for a movie or TV show to add to your
+                            comparison
                           </Text>
                         ) : null
                       }
@@ -659,6 +649,33 @@ const styles = (colors: any) =>
       padding: 12,
       color: colors.error,
       textAlign: "center",
+    },
+    // New styles for already selected items
+    alreadySelectedMedia: {
+      backgroundColor: colors.surface,
+      opacity: 0.6,
+    },
+    selectedIndicator: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: "500",
+      marginTop: 4,
+    },
+    checkmark: {
+      marginLeft: 8,
+      justifyContent: "center",
+    },
+    selectedCountContainer: {
+      backgroundColor: colors.surface,
+      padding: 8,
+      borderRadius: 6,
+      marginBottom: 8,
+      alignItems: "center",
+    },
+    selectedCountText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "500",
     },
   });
 

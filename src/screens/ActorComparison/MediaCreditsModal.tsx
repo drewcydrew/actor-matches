@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   StyleSheet,
   Text,
@@ -24,14 +24,10 @@ interface MediaCastModalProps {
   mediaType?: "movie" | "tv";
   onSelectActor1: (actor: Person) => void;
   onSelectActor2: (actor: Person) => void;
-  onSelectMedia1?: (media: MediaItem) => void;
-  onSelectMedia2?: (media: MediaItem) => void;
   isVisible: boolean;
   onClose: () => void;
   selectedActor1?: Person | null;
   selectedActor2?: Person | null;
-  selectedMedia1?: MediaItem | null;
-  selectedMedia2?: MediaItem | null;
 }
 
 const MediaCreditsModal = ({
@@ -41,17 +37,14 @@ const MediaCreditsModal = ({
   mediaType = "movie",
   onSelectActor1,
   onSelectActor2,
-  onSelectMedia1,
-  onSelectMedia2,
   isVisible,
   onClose,
   selectedActor1,
   selectedActor2,
-  selectedMedia1,
-  selectedMedia2,
 }: MediaCastModalProps) => {
   const { colors } = useTheme();
-  const { getCast } = useFilmContext();
+  const { getCast, selectedMediaItems, addMediaItem, updateMediaItem } =
+    useFilmContext();
 
   // Update state type to use Person instead of CastMember
   const [cast, setCast] = useState<Person[]>([]);
@@ -61,9 +54,6 @@ const MediaCreditsModal = ({
   const [showActorOptions, setShowActorOptions] = useState(false);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
-
-  const isSelectedAsMedia1 = !!selectedMedia1 && selectedMedia1.id === mediaId;
-  const isSelectedAsMedia2 = !!selectedMedia2 && selectedMedia2.id === mediaId;
 
   // Memoize filtered cast to avoid recalculating on every render
   const filteredCast = useMemo(() => {
@@ -312,27 +302,40 @@ const MediaCreditsModal = ({
     );
   };
 
-  // Media selection functions - implement the missing functionality
-  const handleSelectMedia = (option: "media1" | "media2") => {
+  // Check if this media is already in the array
+  const isMediaAlreadySelected = useCallback(
+    (mediaId: number): { isSelected: boolean; index: number } => {
+      const index = selectedMediaItems.findIndex((item) => item.id === mediaId);
+      return { isSelected: index !== -1, index };
+    },
+    [selectedMediaItems]
+  );
+
+  // Simplified media selection function - only array-based
+  const handleSelectMedia = (
+    option: "addNew" | "replaceAtIndex",
+    replaceIndex?: number
+  ) => {
     if (mediaId && mediaTitle) {
       // Create MediaItem object from current media data
       const mediaData: MediaItem = {
         id: mediaId,
         name: mediaTitle,
-        title: mediaTitle, // For movies, both name and title should be the same
-        popularity: 0, // Default value since we don't have this data
+        title: mediaTitle,
+        popularity: 0,
         media_type: mediaType,
         poster_path: mediaPosterPath,
-        // Add required properties based on media type
         ...(mediaType === "movie"
           ? { release_date: undefined }
           : { first_air_date: undefined, episode_count: undefined }),
       };
 
-      if (option === "media1" && onSelectMedia1) {
-        onSelectMedia1(mediaData);
-      } else if (option === "media2" && onSelectMedia2) {
-        onSelectMedia2(mediaData);
+      if (option === "addNew") {
+        // Add as new item to array
+        addMediaItem(mediaData);
+      } else if (option === "replaceAtIndex" && replaceIndex !== undefined) {
+        // Replace specific item in array
+        updateMediaItem(replaceIndex, mediaData);
       }
 
       // Close modal and reset states
@@ -352,10 +355,107 @@ const MediaCreditsModal = ({
     setShowMediaOptions(false);
   };
 
-  const canSelectMedia = onSelectMedia1 || onSelectMedia2;
-
   // Determine if we should show the filter controls
   const shouldShowFilters = cast.length > 0;
+
+  // Helper function to get media title
+  const getMediaTitle = useCallback((media: MediaItem): string => {
+    return media.media_type === "movie"
+      ? media.title || media.name
+      : media.name;
+  }, []);
+
+  // Simplified media selection overlay
+  const renderMediaSelectionOverlay = () => {
+    if (!showMediaOptions) return null;
+
+    const { isSelected, index } = isMediaAlreadySelected(mediaId);
+
+    return (
+      <View style={styles(colors).optionsOverlay}>
+        <View style={styles(colors).optionsContainer}>
+          <Text style={styles(colors).optionsTitle}>
+            {isSelected
+              ? `"${mediaTitle}" is already selected`
+              : `Add "${mediaTitle}"`}
+          </Text>
+
+          {isSelected ? (
+            // Media is already selected - show update option
+            <>
+              <Text style={styles(colors).alreadySelectedText}>
+                This title is already in your selection at position {index + 1}.
+              </Text>
+
+              <TouchableOpacity
+                style={styles(colors).optionButton}
+                onPress={() => handleSelectMedia("replaceAtIndex", index)}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles(colors).optionText}>
+                  Update at position {index + 1}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Media is not selected - show add/replace options
+            <>
+              {/* Option to add as new */}
+              <TouchableOpacity
+                style={styles(colors).primaryOptionButton}
+                onPress={() => handleSelectMedia("addNew")}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                <Text style={styles(colors).primaryOptionText}>
+                  Add as new selection
+                </Text>
+              </TouchableOpacity>
+
+              {/* Show existing selections for replacement */}
+              {selectedMediaItems.length > 0 && (
+                <>
+                  <Text style={styles(colors).sectionTitle}>
+                    Or replace existing:
+                  </Text>
+
+                  {selectedMediaItems.map((media, index) => (
+                    <TouchableOpacity
+                      key={`${media.id}-${index}`}
+                      style={styles(colors).optionButton}
+                      onPress={() => handleSelectMedia("replaceAtIndex", index)}
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={20}
+                        color={colors.text}
+                      />
+                      <Text style={styles(colors).optionText}>
+                        Replace #{index + 1}: {media.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles(colors).cancelButton}
+            onPress={() => setShowMediaOptions(false)}
+          >
+            <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
+  // Update header actions to show selection status
+  const canSelectMedia = true; // Always allow selection since we use array now
 
   return (
     <Modal
@@ -378,16 +478,16 @@ const MediaCreditsModal = ({
               </Text>
             </View>
 
-            {/* Add header actions with Select Media button */}
+            {/* Header actions */}
             <View style={styles(colors).headerActions}>
               {canSelectMedia && (
                 <TouchableOpacity
                   style={styles(colors).selectMediaButton}
                   onPress={openMediaOptions}
-                  accessibilityLabel="update"
+                  accessibilityLabel="Add to selection"
                 >
-                  <Ionicons name="film" size={20} color={colors.primary} />
-                  <Text style={styles(colors).selectMediaText}>Update</Text>
+                  <Ionicons name="add" size={20} color={colors.primary} />
+                  <Text style={styles(colors).selectMediaText}>Add</Text>
                 </TouchableOpacity>
               )}
 
@@ -534,61 +634,8 @@ const MediaCreditsModal = ({
             </View>
           )}
 
-          {/* New media selection options overlay */}
-          {showMediaOptions && (
-            <View style={styles(colors).optionsOverlay}>
-              <View style={styles(colors).optionsContainer}>
-                <Text style={styles(colors).optionsTitle}>
-                  Select {mediaTitle} as
-                </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles(colors).optionButton,
-                    isSelectedAsMedia1 && styles(colors).selectedOptionButton,
-                  ]}
-                  onPress={() => handleSelectMedia("media1")}
-                  disabled={isSelectedAsMedia1}
-                >
-                  <Ionicons name="film-outline" size={20} color={colors.text} />
-                  <Text style={styles(colors).optionText}>
-                    {isSelectedAsMedia1
-                      ? "Already selected as Media 1"
-                      : "Media 1"}
-                    {selectedMedia1 && !isSelectedAsMedia1
-                      ? ` (replaces ${selectedMedia1.name})`
-                      : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles(colors).optionButton,
-                    isSelectedAsMedia2 && styles(colors).selectedOptionButton,
-                  ]}
-                  onPress={() => handleSelectMedia("media2")}
-                  disabled={isSelectedAsMedia2}
-                >
-                  <Ionicons name="film-outline" size={20} color={colors.text} />
-                  <Text style={styles(colors).optionText}>
-                    {isSelectedAsMedia2
-                      ? "Already selected as Media 2"
-                      : "Media 2"}
-                    {selectedMedia2 && !isSelectedAsMedia2
-                      ? ` (replaces ${selectedMedia2.name})`
-                      : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).cancelButton}
-                  onPress={() => setShowMediaOptions(false)}
-                >
-                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          {/* Simplified media selection overlay */}
+          {renderMediaSelectionOverlay()}
         </View>
       </View>
     </Modal>
@@ -775,10 +822,25 @@ const styles = (colors: any) =>
       marginBottom: 12,
       backgroundColor: colors.surface || colors.card || colors.background,
     },
+    primaryOptionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      backgroundColor: colors.primary,
+      borderRadius: 8,
+      marginBottom: 12,
+    },
     optionText: {
       fontSize: 14,
       color: colors.text,
       marginLeft: 12,
+    },
+    primaryOptionText: {
+      fontSize: 14,
+      color: "#fff",
+      marginLeft: 12,
+      fontWeight: "600",
     },
     cancelButton: {
       paddingVertical: 12,
@@ -789,6 +851,21 @@ const styles = (colors: any) =>
       fontSize: 14,
       color: colors.primary,
       fontWeight: "600",
+    },
+    alreadySelectedText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 12,
+      fontStyle: "italic",
+    },
+    sectionTitle: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "600",
+      marginTop: 8,
+      marginBottom: 4,
+      textAlign: "center",
     },
 
     selectedOptionButton: {
