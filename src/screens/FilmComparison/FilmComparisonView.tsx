@@ -4,7 +4,7 @@ import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
 import FilmSearch from "./FilmSearch";
 import ActorDisplay from "./ActorDisplay";
-import ActorFilmographyModal from "./ActorFilmographyModal";
+import PersonCreditsModal from "./ActorFilmographyModal"; // Updated import
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 
@@ -21,15 +21,14 @@ const FilmComparisonView = () => {
     setSelectedCastMember2,
   } = useFilmContext();
 
-  // Local state for filmography modal
-  const [selectedActor, setSelectedActor] = useState<Person | null>(null);
-  const [isActorFilmographyVisible, setIsActorFilmographyVisible] =
-    useState(false);
+  // Local state for person credits modal
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
+  const [isPersonCreditsVisible, setIsPersonCreditsVisible] = useState(false);
 
-  // Handle actor selection
-  const handleActorSelect = (actor: Person) => {
-    setSelectedActor(actor);
-    setIsActorFilmographyVisible(true);
+  // Handle person selection
+  const handlePersonSelect = (person: Person) => {
+    setSelectedPerson(person);
+    setIsPersonCreditsVisible(true);
   };
 
   // Function to ensure media items have all required properties
@@ -72,43 +71,43 @@ const FilmComparisonView = () => {
 
       {/* Actor comparison section - this contains the FlatList */}
       <View style={styles(colors).actorSection}>
-        <ActorDisplay onActorSelect={handleActorSelect} />
+        <ActorDisplay onActorSelect={handlePersonSelect} />
       </View>
 
-      {/* Show modal when actor is selected */}
-      {selectedActor && (
-        <ActorFilmographyModal
-          actorId={selectedActor.id}
-          actorName={selectedActor.name}
-          actorProfilePath={selectedActor.profile_path}
-          isVisible={isActorFilmographyVisible}
+      {/* Show modal when person is selected */}
+      {selectedPerson && (
+        <PersonCreditsModal
+          personId={selectedPerson.id}
+          personName={selectedPerson.name}
+          personProfilePath={selectedPerson.profile_path}
+          isVisible={isPersonCreditsVisible}
           onClose={() => {
-            setIsActorFilmographyVisible(false);
-            setSelectedActor(null);
+            setIsPersonCreditsVisible(false);
+            setSelectedPerson(null);
           }}
-          // Film selection handlers - FIXED: preserve original media_type
-          onSelectFilm1={(media) => {
+          // Media selection handlers
+          onSelectMedia1={(media) => {
             setSelectedMediaItem1(media);
-            setSelectedActor(null);
-            setIsActorFilmographyVisible(false);
+            setSelectedPerson(null);
+            setIsPersonCreditsVisible(false);
           }}
-          onSelectFilm2={(media) => {
+          onSelectMedia2={(media) => {
             setSelectedMediaItem2(media);
-            setSelectedActor(null);
-            setIsActorFilmographyVisible(false);
+            setSelectedPerson(null);
+            setIsPersonCreditsVisible(false);
           }}
-          // New actor selection handlers
-          onSelectActor1={(actor) => {
-            setSelectedCastMember1(actor);
+          // Person selection handlers
+          onSelectPerson1={(person) => {
+            setSelectedCastMember1(person);
           }}
-          onSelectActor2={(actor) => {
-            setSelectedCastMember2(actor);
+          onSelectPerson2={(person) => {
+            setSelectedCastMember2(person);
           }}
-          // Current selections for films and actors - FIXED: ensure proper MediaItem
-          selectedFilm1={ensureMediaItemProperties(selectedMediaItem1)}
-          selectedFilm2={ensureMediaItemProperties(selectedMediaItem2)}
-          selectedActor1={selectedCastMember1}
-          selectedActor2={selectedCastMember2}
+          // Current selections
+          selectedMedia1={ensureMediaItemProperties(selectedMediaItem1)}
+          selectedMedia2={ensureMediaItemProperties(selectedMediaItem2)}
+          selectedPerson1={selectedCastMember1}
+          selectedPerson2={selectedCastMember2}
         />
       )}
     </View>

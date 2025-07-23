@@ -10,48 +10,48 @@ import {
   Modal,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext } from "../../context/FilmContext"; // Add this import
+import { useFilmContext } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
-import { MediaItem, Person } from "../../types/types"; // Use Person instead of CastMember
+import { MediaItem, Person } from "../../types/types";
 
 // Define filter type
 type FilterMode = "all" | "cast" | "crew";
 
-interface FilmCastModalProps {
-  filmId: number;
-  filmTitle?: string;
-  filmPosterPath?: string;
+interface MediaCastModalProps {
+  mediaId: number;
+  mediaTitle?: string;
+  mediaPosterPath?: string;
   mediaType?: "movie" | "tv";
   onSelectActor1: (actor: Person) => void;
   onSelectActor2: (actor: Person) => void;
-  onSelectFilm1?: (film: MediaItem) => void;
-  onSelectFilm2?: (film: MediaItem) => void;
+  onSelectMedia1?: (media: MediaItem) => void;
+  onSelectMedia2?: (media: MediaItem) => void;
   isVisible: boolean;
   onClose: () => void;
   selectedActor1?: Person | null;
   selectedActor2?: Person | null;
-  selectedFilm1?: MediaItem | null;
-  selectedFilm2?: MediaItem | null;
+  selectedMedia1?: MediaItem | null;
+  selectedMedia2?: MediaItem | null;
 }
 
-const FilmCastModal = ({
-  filmId,
-  filmTitle = "Film",
-  filmPosterPath,
+const MediaCastModal = ({
+  mediaId,
+  mediaTitle = "Media",
+  mediaPosterPath,
   mediaType = "movie",
   onSelectActor1,
   onSelectActor2,
-  onSelectFilm1,
-  onSelectFilm2,
+  onSelectMedia1,
+  onSelectMedia2,
   isVisible,
   onClose,
   selectedActor1,
   selectedActor2,
-  selectedFilm1,
-  selectedFilm2,
-}: FilmCastModalProps) => {
+  selectedMedia1,
+  selectedMedia2,
+}: MediaCastModalProps) => {
   const { colors } = useTheme();
-  const { getCast } = useFilmContext(); // Get getCast from context
+  const { getCast } = useFilmContext();
 
   // Update state type to use Person instead of CastMember
   const [cast, setCast] = useState<Person[]>([]);
@@ -59,11 +59,11 @@ const FilmCastModal = ({
   const [error, setError] = useState("");
   const [selectedActor, setSelectedActor] = useState<Person | null>(null);
   const [showActorOptions, setShowActorOptions] = useState(false);
-  const [showFilmOptions, setShowFilmOptions] = useState(false);
-  const [filterMode, setFilterMode] = useState<FilterMode>("all"); // Add filter state
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all");
 
-  const isSelectedAsFilm1 = !!selectedFilm1 && selectedFilm1.id === filmId;
-  const isSelectedAsFilm2 = !!selectedFilm2 && selectedFilm2.id === filmId;
+  const isSelectedAsMedia1 = !!selectedMedia1 && selectedMedia1.id === mediaId;
+  const isSelectedAsMedia2 = !!selectedMedia2 && selectedMedia2.id === mediaId;
 
   // Memoize filtered cast to avoid recalculating on every render
   const filteredCast = useMemo(() => {
@@ -102,14 +102,14 @@ const FilmCastModal = ({
   // Update useEffect to use getCast from context
   useEffect(() => {
     const fetchCast = async () => {
-      if (!filmId) return;
+      if (!mediaId) return;
 
       try {
         setLoading(true);
         setError("");
 
         // Use getCast from FilmContext
-        const { results, error: castError } = await getCast(filmId, mediaType);
+        const { results, error: castError } = await getCast(mediaId, mediaType);
 
         if (castError) {
           setError(castError);
@@ -122,13 +122,13 @@ const FilmCastModal = ({
         } else {
           setError(
             `No cast or crew found for this ${
-              mediaType === "tv" ? "TV show" : "film"
+              mediaType === "tv" ? "TV show" : "movie"
             }`
           );
         }
       } catch (err) {
         console.error(
-          `Failed to fetch ${mediaType === "tv" ? "TV show" : "film"}'s cast:`,
+          `Failed to fetch ${mediaType === "tv" ? "TV show" : "movie"}'s cast:`,
           err
         );
         setError("Failed to load cast information");
@@ -137,10 +137,10 @@ const FilmCastModal = ({
       }
     };
 
-    if (isVisible && filmId) {
+    if (isVisible && mediaId) {
       fetchCast();
     }
-  }, [filmId, isVisible, mediaType, getCast]);
+  }, [mediaId, isVisible, mediaType, getCast]);
 
   const handleActorPress = (actor: Person) => {
     setSelectedActor(actor);
@@ -312,23 +312,47 @@ const FilmCastModal = ({
     );
   };
 
-  // Film selection functions remain the same
-  const handleSelectFilm = (option: "film1" | "film2") => {
-    // ... existing implementation
+  // Media selection functions - implement the missing functionality
+  const handleSelectMedia = (option: "media1" | "media2") => {
+    if (mediaId && mediaTitle) {
+      // Create MediaItem object from current media data
+      const mediaData: MediaItem = {
+        id: mediaId,
+        name: mediaTitle,
+        title: mediaTitle, // For movies, both name and title should be the same
+        popularity: 0, // Default value since we don't have this data
+        media_type: mediaType,
+        poster_path: mediaPosterPath,
+        // Add required properties based on media type
+        ...(mediaType === "movie"
+          ? { release_date: undefined }
+          : { first_air_date: undefined, episode_count: undefined }),
+      };
+
+      if (option === "media1" && onSelectMedia1) {
+        onSelectMedia1(mediaData);
+      } else if (option === "media2" && onSelectMedia2) {
+        onSelectMedia2(mediaData);
+      }
+
+      // Close modal and reset states
+      onClose();
+      setShowMediaOptions(false);
+    }
   };
 
-  const openFilmOptions = () => {
-    setShowFilmOptions(true);
+  const openMediaOptions = () => {
+    setShowMediaOptions(true);
   };
 
   const handleCloseModal = () => {
     onClose();
     setShowActorOptions(false);
     setSelectedActor(null);
-    setShowFilmOptions(false);
+    setShowMediaOptions(false);
   };
 
-  const canSelectFilm = onSelectFilm1 || onSelectFilm2;
+  const canSelectMedia = onSelectMedia1 || onSelectMedia2;
 
   // Determine if we should show the filter controls
   const shouldShowFilters = cast.length > 0;
@@ -350,20 +374,20 @@ const FilmCastModal = ({
                 numberOfLines={2}
                 ellipsizeMode="tail"
               >
-                {filmTitle}
+                {mediaTitle}
               </Text>
             </View>
 
-            {/* Add header actions with Select Film button */}
+            {/* Add header actions with Select Media button */}
             <View style={styles(colors).headerActions}>
-              {canSelectFilm && (
+              {canSelectMedia && (
                 <TouchableOpacity
-                  style={styles(colors).selectFilmButton}
-                  onPress={openFilmOptions}
-                  accessibilityLabel="Select film"
+                  style={styles(colors).selectMediaButton}
+                  onPress={openMediaOptions}
+                  accessibilityLabel="Select media"
                 >
                   <Ionicons name="film" size={20} color={colors.primary} />
-                  <Text style={styles(colors).selectFilmText}>Select</Text>
+                  <Text style={styles(colors).selectMediaText}>Select</Text>
                 </TouchableOpacity>
               )}
 
@@ -510,29 +534,29 @@ const FilmCastModal = ({
             </View>
           )}
 
-          {/* New film selection options overlay */}
-          {showFilmOptions && (
+          {/* New media selection options overlay */}
+          {showMediaOptions && (
             <View style={styles(colors).optionsOverlay}>
               <View style={styles(colors).optionsContainer}>
                 <Text style={styles(colors).optionsTitle}>
-                  Select {filmTitle} as
+                  Select {mediaTitle} as
                 </Text>
 
                 <TouchableOpacity
                   style={[
                     styles(colors).optionButton,
-                    isSelectedAsFilm1 && styles(colors).selectedOptionButton,
+                    isSelectedAsMedia1 && styles(colors).selectedOptionButton,
                   ]}
-                  onPress={() => handleSelectFilm("film1")}
-                  disabled={isSelectedAsFilm1}
+                  onPress={() => handleSelectMedia("media1")}
+                  disabled={isSelectedAsMedia1}
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsFilm1
-                      ? "Already selected as Film 1"
-                      : "Film 1"}
-                    {selectedFilm1 && !isSelectedAsFilm1
-                      ? ` (replaces ${selectedFilm1.name})`
+                    {isSelectedAsMedia1
+                      ? "Already selected as Media 1"
+                      : "Media 1"}
+                    {selectedMedia1 && !isSelectedAsMedia1
+                      ? ` (replaces ${selectedMedia1.name})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
@@ -540,25 +564,25 @@ const FilmCastModal = ({
                 <TouchableOpacity
                   style={[
                     styles(colors).optionButton,
-                    isSelectedAsFilm2 && styles(colors).selectedOptionButton,
+                    isSelectedAsMedia2 && styles(colors).selectedOptionButton,
                   ]}
-                  onPress={() => handleSelectFilm("film2")}
-                  disabled={isSelectedAsFilm2}
+                  onPress={() => handleSelectMedia("media2")}
+                  disabled={isSelectedAsMedia2}
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsFilm2
-                      ? "Already selected as Film 2"
-                      : "Film 2"}
-                    {selectedFilm2 && !isSelectedAsFilm2
-                      ? ` (replaces ${selectedFilm2.name})`
+                    {isSelectedAsMedia2
+                      ? "Already selected as Media 2"
+                      : "Media 2"}
+                    {selectedMedia2 && !isSelectedAsMedia2
+                      ? ` (replaces ${selectedMedia2.name})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles(colors).cancelButton}
-                  onPress={() => setShowFilmOptions(false)}
+                  onPress={() => setShowMediaOptions(false)}
                 >
                   <Text style={styles(colors).cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -609,7 +633,7 @@ const styles = (colors: any) =>
       padding: 8, // Increased touch target
       marginLeft: 8, // Add spacing between buttons
     },
-    selectFilmButton: {
+    selectMediaButton: {
       flexDirection: "row",
       alignItems: "center",
       paddingVertical: 4,
@@ -618,7 +642,7 @@ const styles = (colors: any) =>
       borderWidth: 1,
       borderColor: colors.primary,
     },
-    selectFilmText: {
+    selectMediaText: {
       color: colors.primary,
       fontSize: 12,
       marginLeft: 4,
@@ -847,4 +871,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default FilmCastModal;
+export default MediaCastModal;

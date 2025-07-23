@@ -12,24 +12,24 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
-import { MediaItem } from "../../types/types"; // Only import MediaItem
+import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 
-// Update props to use MediaItem instead of Film
-interface ActorFilmographyModalProps {
-  actorId: number;
-  actorName?: string;
-  onSelectFilm1: (media: MediaItem) => void;
-  onSelectFilm2: (media: MediaItem) => void;
-  onSelectActor1?: (actor: Person) => void;
-  onSelectActor2?: (actor: Person) => void;
+// Update props to use MediaItem and generic terminology
+interface PersonCreditsModalProps {
+  personId: number;
+  personName?: string;
+  onSelectMedia1: (media: MediaItem) => void;
+  onSelectMedia2: (media: MediaItem) => void;
+  onSelectPerson1?: (person: Person) => void;
+  onSelectPerson2?: (person: Person) => void;
   isVisible: boolean;
   onClose: () => void;
-  selectedFilm1?: MediaItem | null;
-  selectedFilm2?: MediaItem | null;
-  selectedActor1?: Person | null;
-  selectedActor2?: Person | null;
-  actorProfilePath?: string;
+  selectedMedia1?: MediaItem | null;
+  selectedMedia2?: MediaItem | null;
+  selectedPerson1?: Person | null;
+  selectedPerson2?: Person | null;
+  personProfilePath?: string;
 }
 
 type MediaType = "all" | "movies" | "tv";
@@ -41,21 +41,21 @@ type ExtendedMediaItem = MediaItem & {
   roles?: ("cast" | "crew")[]; // Add roles array to track all role types
 };
 
-const ActorFilmographyModal = ({
-  actorId,
-  actorName = "Actor",
-  onSelectFilm1,
-  onSelectFilm2,
-  onSelectActor1,
-  onSelectActor2,
+const PersonCreditsModal = ({
+  personId,
+  personName = "Person",
+  onSelectMedia1,
+  onSelectMedia2,
+  onSelectPerson1,
+  onSelectPerson2,
   isVisible,
   onClose,
-  selectedFilm1,
-  selectedFilm2,
-  selectedActor1,
-  selectedActor2,
-  actorProfilePath,
-}: ActorFilmographyModalProps) => {
+  selectedMedia1,
+  selectedMedia2,
+  selectedPerson1,
+  selectedPerson2,
+  personProfilePath,
+}: PersonCreditsModalProps) => {
   const { colors } = useTheme();
   const { getCredits } = useFilmContext();
 
@@ -66,19 +66,20 @@ const ActorFilmographyModal = ({
   );
   const [showItemOptions, setShowItemOptions] = useState(false);
   const [mediaType, setMediaType] = useState<MediaType>("all");
-  const [showActorOptions, setShowActorOptions] = useState(false);
+  const [showPersonOptions, setShowPersonOptions] = useState(false);
   const [allCredits, setAllCredits] = useState<ExtendedMediaItem[]>([]);
 
-  // No changes needed for these checks
-  const isSelectedAsActor1 = !!selectedActor1 && selectedActor1.id === actorId;
-  const isSelectedAsActor2 = !!selectedActor2 && selectedActor2.id === actorId;
+  // Updated checks for person selection
+  const isSelectedAsPerson1 =
+    !!selectedPerson1 && selectedPerson1.id === personId;
+  const isSelectedAsPerson2 =
+    !!selectedPerson2 && selectedPerson2.id === personId;
 
-  // No changes needed for these useEffects
   useEffect(() => {
-    if (isVisible && actorId) {
-      fetchActorCredits();
+    if (isVisible && personId) {
+      fetchPersonCredits();
     }
-  }, [actorId, isVisible]);
+  }, [personId, isVisible]);
 
   // Memoize filtered media items
   const mediaItems = useMemo(() => {
@@ -116,13 +117,13 @@ const ActorFilmographyModal = ({
     };
   }, [allCredits]);
 
-  // No changes needed for fetchActorCredits
-  const fetchActorCredits = async () => {
+  // Updated function name and error message
+  const fetchPersonCredits = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const { results, error: creditsError } = await getCredits(actorId);
+      const { results, error: creditsError } = await getCredits(personId);
 
       if (creditsError) {
         setError(creditsError);
@@ -149,15 +150,37 @@ const ActorFilmographyModal = ({
     setShowItemOptions(true);
   }, []);
 
-  // Simplified - no longer converting TV shows to Film
+  // Updated function to handle person selection
+  const handleSelectPerson = (option: "person1" | "person2") => {
+    const personData: Person = {
+      id: personId,
+      name: personName,
+      profile_path: personProfilePath,
+      roles: ["cast"], // Add required roles array
+    };
+
+    if (option === "person1" && onSelectPerson1) {
+      onSelectPerson1(personData);
+    } else if (option === "person2" && onSelectPerson2) {
+      onSelectPerson2(personData);
+    }
+
+    setShowPersonOptions(false);
+  };
+
+  const openPersonOptions = () => {
+    setShowPersonOptions(true);
+  };
+
+  // Updated to use media instead of film terminology
   const handleSelectOption = useCallback(
-    (option: "film1" | "film2") => {
+    (option: "media1" | "media2") => {
       if (selectedItem) {
         // Pass the MediaItem directly without conversion
-        if (option === "film1") {
-          onSelectFilm1(selectedItem);
+        if (option === "media1") {
+          onSelectMedia1(selectedItem);
         } else {
-          onSelectFilm2(selectedItem);
+          onSelectMedia2(selectedItem);
         }
         // Close modal and reset states
         onClose();
@@ -165,36 +188,14 @@ const ActorFilmographyModal = ({
         setSelectedItem(null);
       }
     },
-    [selectedItem, onSelectFilm1, onSelectFilm2, onClose]
+    [selectedItem, onSelectMedia1, onSelectMedia2, onClose]
   );
 
   const handleCloseModal = () => {
     onClose();
     setShowItemOptions(false);
     setSelectedItem(null);
-    setShowActorOptions(false);
-  };
-
-  // No changes needed for handleSelectActor
-  const handleSelectActor = (option: "actor1" | "actor2") => {
-    const actorData: Person = {
-      id: actorId,
-      name: actorName,
-      profile_path: actorProfilePath,
-      roles: ["cast"], // Add required roles array
-    };
-
-    if (option === "actor1" && onSelectActor1) {
-      onSelectActor1(actorData);
-    } else if (option === "actor2" && onSelectActor2) {
-      onSelectActor2(actorData);
-    }
-
-    setShowActorOptions(false);
-  };
-
-  const openActorOptions = () => {
-    setShowActorOptions(true);
+    setShowPersonOptions(false);
   };
 
   // Memoize key extractor
@@ -365,8 +366,8 @@ const ActorFilmographyModal = ({
             selectedItem?.id === item.id
               ? styles(colors).selectedFilmItem
               : null,
-            selectedFilm1?.id === item.id ? styles(colors).film1Item : null,
-            selectedFilm2?.id === item.id ? styles(colors).film2Item : null,
+            selectedMedia1?.id === item.id ? styles(colors).film1Item : null,
+            selectedMedia2?.id === item.id ? styles(colors).film2Item : null,
           ]}
           onPress={() => handleItemPress(item)}
           activeOpacity={0.7}
@@ -414,12 +415,12 @@ const ActorFilmographyModal = ({
           </View>
 
           {/* Indicator labels */}
-          {selectedFilm1?.id === item.id && (
+          {selectedMedia1?.id === item.id && (
             <View style={styles(colors).filmIndicator}>
-              <Text style={styles(colors).indicatorText}>Film 1</Text>
+              <Text style={styles(colors).indicatorText}>Media 1</Text>
             </View>
           )}
-          {selectedFilm2?.id === item.id && (
+          {selectedMedia2?.id === item.id && (
             <View
               style={[
                 styles(colors).filmIndicator,
@@ -428,13 +429,13 @@ const ActorFilmographyModal = ({
                 },
               ]}
             >
-              <Text style={styles(colors).indicatorText}>Film 2</Text>
+              <Text style={styles(colors).indicatorText}>Media 2</Text>
             </View>
           )}
         </TouchableOpacity>
       );
     },
-    [colors, selectedItem, selectedFilm1, selectedFilm2, handleItemPress]
+    [colors, selectedItem, selectedMedia1, selectedMedia2, handleItemPress]
   );
 
   // Updated to use MediaItem properties
@@ -456,15 +457,17 @@ const ActorFilmographyModal = ({
         <View style={styles(colors).modalContent}>
           {/* Modal header */}
           <View style={styles(colors).modalHeader}>
-            <Text style={styles(colors).modalTitle}>{actorName}</Text>
+            <Text style={styles(colors).modalTitle}>{personName}</Text>
 
             <View style={styles(colors).headerActions}>
               <TouchableOpacity
-                style={styles(colors).selectActorButton}
-                onPress={openActorOptions}
+                style={styles(colors).selectPersonButton}
+                onPress={openPersonOptions}
               >
                 <Ionicons name="person-add" size={20} color={colors.primary} />
-                <Text style={styles(colors).selectActorText}>Select Actor</Text>
+                <Text style={styles(colors).selectPersonText}>
+                  Select Person
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -565,7 +568,7 @@ const ActorFilmographyModal = ({
             )}
           </View>
 
-          {/* Media selection options overlay - updated to use getMediaTitle */}
+          {/* Media selection options overlay - updated terminology */}
           {showItemOptions && selectedItem && (
             <View style={styles(colors).optionsOverlay}>
               <View style={styles(colors).optionsContainer}>
@@ -575,23 +578,23 @@ const ActorFilmographyModal = ({
 
                 <TouchableOpacity
                   style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("film1")}
+                  onPress={() => handleSelectOption("media1")}
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    Replace Film 1{" "}
-                    {selectedFilm1 ? `(${getMediaTitle(selectedFilm1)})` : ""}
+                    Replace Media 1{" "}
+                    {selectedMedia1 ? `(${getMediaTitle(selectedMedia1)})` : ""}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("film2")}
+                  onPress={() => handleSelectOption("media2")}
                 >
                   <Ionicons name="film-outline" size={20} color={colors.text} />
                   <Text style={styles(colors).optionText}>
-                    Replace Film 2{" "}
-                    {selectedFilm2 ? `(${getMediaTitle(selectedFilm2)})` : ""}
+                    Replace Media 2{" "}
+                    {selectedMedia2 ? `(${getMediaTitle(selectedMedia2)})` : ""}
                   </Text>
                 </TouchableOpacity>
 
@@ -608,21 +611,21 @@ const ActorFilmographyModal = ({
             </View>
           )}
 
-          {/* Actor selection overlay - no changes needed */}
-          {showActorOptions && (
+          {/* Person selection overlay - updated terminology */}
+          {showPersonOptions && (
             <View style={styles(colors).optionsOverlay}>
               <View style={styles(colors).optionsContainer}>
                 <Text style={styles(colors).optionsTitle}>
-                  Select {actorName} as
+                  Select {personName} as
                 </Text>
 
                 <TouchableOpacity
                   style={[
                     styles(colors).optionButton,
-                    isSelectedAsActor1 && styles(colors).selectedOptionButton,
+                    isSelectedAsPerson1 && styles(colors).selectedOptionButton,
                   ]}
-                  onPress={() => handleSelectActor("actor1")}
-                  disabled={isSelectedAsActor1}
+                  onPress={() => handleSelectPerson("person1")}
+                  disabled={isSelectedAsPerson1}
                 >
                   <Ionicons
                     name="person-outline"
@@ -630,11 +633,11 @@ const ActorFilmographyModal = ({
                     color={colors.text}
                   />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsActor1
-                      ? "Already selected as Actor 1"
-                      : "Actor 1"}
-                    {selectedActor1 && !isSelectedAsActor1
-                      ? ` (replaces ${selectedActor1.name})`
+                    {isSelectedAsPerson1
+                      ? "Already selected as Person 1"
+                      : "Person 1"}
+                    {selectedPerson1 && !isSelectedAsPerson1
+                      ? ` (replaces ${selectedPerson1.name})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
@@ -642,10 +645,10 @@ const ActorFilmographyModal = ({
                 <TouchableOpacity
                   style={[
                     styles(colors).optionButton,
-                    isSelectedAsActor2 && styles(colors).selectedOptionButton,
+                    isSelectedAsPerson2 && styles(colors).selectedOptionButton,
                   ]}
-                  onPress={() => handleSelectActor("actor2")}
-                  disabled={isSelectedAsActor2}
+                  onPress={() => handleSelectPerson("person2")}
+                  disabled={isSelectedAsPerson2}
                 >
                   <Ionicons
                     name="person-outline"
@@ -653,18 +656,18 @@ const ActorFilmographyModal = ({
                     color={colors.text}
                   />
                   <Text style={styles(colors).optionText}>
-                    {isSelectedAsActor2
-                      ? "Already selected as Actor 2"
-                      : "Actor 2"}
-                    {selectedActor2 && !isSelectedAsActor2
-                      ? ` (replaces ${selectedActor2.name})`
+                    {isSelectedAsPerson2
+                      ? "Already selected as Person 2"
+                      : "Person 2"}
+                    {selectedPerson2 && !isSelectedAsPerson2
+                      ? ` (replaces ${selectedPerson2.name})`
                       : ""}
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles(colors).cancelButton}
-                  onPress={() => setShowActorOptions(false)}
+                  onPress={() => setShowPersonOptions(false)}
                 >
                   <Text style={styles(colors).cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
@@ -921,7 +924,7 @@ const styles = (colors: any) =>
       flexDirection: "row",
       alignItems: "center",
     },
-    selectActorButton: {
+    selectPersonButton: {
       flexDirection: "row",
       alignItems: "center",
       marginRight: 12,
@@ -931,7 +934,7 @@ const styles = (colors: any) =>
       borderWidth: 1,
       borderColor: colors.primary,
     },
-    selectActorText: {
+    selectPersonText: {
       color: colors.primary,
       fontSize: 12,
       marginLeft: 4,
@@ -968,4 +971,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default ActorFilmographyModal;
+export default PersonCreditsModal;

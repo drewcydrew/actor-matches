@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext } from "../../context/FilmContext"; // Import MediaItem
+import { useFilmContext } from "../../context/FilmContext";
 import ActorSearch from "./ActorSearch";
 import FilmDisplay from "./FilmDisplay";
-import FilmCastModal from "./FilmCastModal";
+import MediaCastModal from "./FilmCastModal"; // Updated import name
 import { MediaItem } from "../../types/types";
 
 const ActorComparisonView = () => {
@@ -20,9 +20,8 @@ const ActorComparisonView = () => {
     setSelectedMediaItem2,
   } = useFilmContext();
 
-  const [isFilmCastVisible, setIsFilmCastVisible] = useState(false);
-  // Change type from Film to MediaItem
-  const [selectedFilmForCast, setSelectedFilmForCast] =
+  const [isMediaCastVisible, setIsMediaCastVisible] = useState(false);
+  const [selectedMediaForCast, setSelectedMediaForCast] =
     useState<MediaItem | null>(null);
 
   return (
@@ -38,52 +37,49 @@ const ActorComparisonView = () => {
         selectedActor={selectedCastMember2}
       />
 
-      {/* Add FilmDisplay component */}
       <View style={styles(colors).filmSection}>
         <FilmDisplay
           actor1Id={selectedCastMember1?.id}
           actor2Id={selectedCastMember2?.id}
           actor1Name={selectedCastMember1?.name}
           actor2Name={selectedCastMember2?.name}
-          onFilmSelect={(film) => {
-            setSelectedFilmForCast(film);
-            setIsFilmCastVisible(true);
+          onFilmSelect={(media) => {
+            setSelectedMediaForCast(media);
+            setIsMediaCastVisible(true);
           }}
         />
 
-        {selectedFilmForCast && (
-          <FilmCastModal
-            filmId={selectedFilmForCast.id}
-            filmTitle={selectedFilmForCast.name}
-            filmPosterPath={selectedFilmForCast.poster_path}
-            mediaType={selectedFilmForCast.media_type}
-            isVisible={isFilmCastVisible}
+        {selectedMediaForCast && (
+          <MediaCastModal
+            mediaId={selectedMediaForCast.id}
+            mediaTitle={selectedMediaForCast.name}
+            mediaPosterPath={selectedMediaForCast.poster_path}
+            mediaType={selectedMediaForCast.media_type}
+            isVisible={isMediaCastVisible}
             onClose={() => {
-              setIsFilmCastVisible(false);
-              setSelectedFilmForCast(null);
+              setIsMediaCastVisible(false);
+              setSelectedMediaForCast(null);
             }}
             onSelectActor1={(actor) => {
               setSelectedCastMember1(actor);
-              setIsFilmCastVisible(false);
-              setSelectedFilmForCast(null);
+              setIsMediaCastVisible(false);
+              setSelectedMediaForCast(null);
             }}
             onSelectActor2={(actor) => {
               setSelectedCastMember2(actor);
-              setIsFilmCastVisible(false);
-              setSelectedFilmForCast(null);
+              setIsMediaCastVisible(false);
+              setSelectedMediaForCast(null);
             }}
-            // Add these new props for film selection
-            onSelectFilm1={(film) => {
-              setSelectedMediaItem1(film);
+            onSelectMedia1={(media) => {
+              setSelectedMediaItem1(media);
             }}
-            onSelectFilm2={(film) => {
-              setSelectedMediaItem2(film);
+            onSelectMedia2={(media) => {
+              setSelectedMediaItem2(media);
             }}
             selectedActor1={selectedCastMember1}
             selectedActor2={selectedCastMember2}
-            // Pass the current selected films
-            selectedFilm1={selectedMediaItem1}
-            selectedFilm2={selectedMediaItem2}
+            selectedMedia1={selectedMediaItem1}
+            selectedMedia2={selectedMediaItem2}
           />
         )}
       </View>

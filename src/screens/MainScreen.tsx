@@ -120,7 +120,7 @@ const MainScreen = () => {
                   : styles.inactiveTabText,
               ]}
             >
-              Compare by Film
+              Compare by Media
             </Text>
           </TouchableOpacity>
 
@@ -141,7 +141,7 @@ const MainScreen = () => {
                   : styles.inactiveTabText,
               ]}
             >
-              Compare by Actor
+              Compare by Person
             </Text>
           </TouchableOpacity>
         </View>
