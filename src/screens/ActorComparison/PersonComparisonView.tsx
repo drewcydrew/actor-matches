@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TouchableOpacity, Alert, Text } from "react-native";
+import {
+  StyleSheet,
+  View,
+  TouchableOpacity,
+  Alert,
+  Text,
+  Platform,
+} from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
 import { useSavedSearches } from "../../context/SavedSearchesContext";
@@ -30,6 +37,7 @@ const PersonComparisonView = () => {
 
   // Remove save modal state
   const [isSaving, setIsSaving] = useState(false);
+  const [showSuccessIndicator, setShowSuccessIndicator] = useState(false);
 
   // Handle save search button press - now immediate
   const handleSaveSearch = async () => {
@@ -53,11 +61,17 @@ const PersonComparisonView = () => {
         selectedCastMember2
       );
 
-      // Show quick success message
-      Alert.alert(
-        "Saved!",
-        `"${defaultName}" has been saved to your searches.`
-      );
+      if (Platform.OS === "web") {
+        // Show visual success indicator for web
+        setShowSuccessIndicator(true);
+        setTimeout(() => setShowSuccessIndicator(false), 3000);
+      } else {
+        // Show alert for native platforms
+        Alert.alert(
+          "Saved!",
+          `"${defaultName}" has been saved to your searches.`
+        );
+      }
     } catch (error) {
       console.error("Error saving search:", error);
       Alert.alert("Error", "Failed to save search. Please try again.");
@@ -108,24 +122,34 @@ const PersonComparisonView = () => {
 
         {/* Floating Save Button */}
         {shouldShowSaveButton && (
-          <TouchableOpacity
-            style={[
-              styles(colors).floatingSaveButton,
-              isSaving && styles(colors).disabledButton,
-            ]}
-            onPress={handleSaveSearch}
-            activeOpacity={0.8}
-            disabled={isSaving}
-          >
-            <Ionicons
-              name={isSaving ? "hourglass-outline" : "bookmark-outline"}
-              size={24}
-              color="#fff"
-            />
-            <Text style={styles(colors).saveButtonText}>
-              {isSaving ? "Saving..." : "Save"}
-            </Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity
+              style={[
+                styles(colors).floatingSaveButton,
+                isSaving && styles(colors).disabledButton,
+              ]}
+              onPress={handleSaveSearch}
+              activeOpacity={0.8}
+              disabled={isSaving}
+            >
+              <Ionicons
+                name={isSaving ? "hourglass-outline" : "bookmark-outline"}
+                size={24}
+                color="#fff"
+              />
+              <Text style={styles(colors).saveButtonText}>
+                {isSaving ? "Saving..." : "Save"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Success Indicator for Web */}
+            {Platform.OS === "web" && showSuccessIndicator && (
+              <View style={styles(colors).successIndicator}>
+                <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                <Text style={styles(colors).successText}>Saved!</Text>
+              </View>
+            )}
+          </>
         )}
 
         {selectedMediaForCast && (
@@ -202,6 +226,28 @@ const styles = (colors: any) =>
     },
     disabledButton: {
       opacity: 0.6,
+    },
+    successIndicator: {
+      position: "absolute",
+      bottom: 80,
+      right: 20,
+      backgroundColor: "#4CAF50",
+      borderRadius: 24,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      elevation: 6,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    },
+    successText: {
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: "600",
+      marginLeft: 6,
     },
   });
 

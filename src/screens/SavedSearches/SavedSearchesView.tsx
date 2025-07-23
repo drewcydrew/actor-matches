@@ -10,6 +10,7 @@ import {
   TextInput,
   Modal,
   Image,
+  Platform,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -55,6 +56,18 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Add confirmation modal state
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [searchToDelete, setSearchToDelete] = useState<SavedSearch | null>(
+    null
+  );
+  const [showClearAllConfirmation, setShowClearAllConfirmation] =
+    useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Add local error state for web-specific errors
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // Get filtered searches based on search query and type filter
   const getFilteredSearches = () => {
@@ -108,26 +121,47 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
 
   // Handle deleting a search
   const handleDeleteSearch = (search: SavedSearch) => {
-    Alert.alert(
-      "Delete Search",
-      `Are you sure you want to delete "${search.name}"?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            const success = await deleteSearch(search.id);
-            if (!success) {
-              Alert.alert(
-                "Error",
-                "Failed to delete search. Please try again."
-              );
-            }
+    if (Platform.OS === "web") {
+      // Use custom modal for web
+      setSearchToDelete(search);
+      setShowDeleteConfirmation(true);
+    } else {
+      // Use native Alert for mobile
+      Alert.alert(
+        "Delete Search",
+        `Are you sure you want to delete "${search.name}"?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: () => performDeleteSearch(search),
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  // Perform the actual delete operation
+  const performDeleteSearch = async (search: SavedSearch) => {
+    setIsDeleting(true);
+    setLocalError(null); // Clear any previous local errors
+
+    const success = await deleteSearch(search.id);
+    setIsDeleting(false);
+
+    if (!success) {
+      if (Platform.OS === "web") {
+        // For web, set local error state
+        setLocalError("Failed to delete search. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to delete search. Please try again.");
+      }
+    }
+
+    // Close confirmation modal
+    setShowDeleteConfirmation(false);
+    setSearchToDelete(null);
   };
 
   // Handle editing a search
@@ -172,26 +206,44 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   const handleClearAll = () => {
     if (savedSearches.length === 0) return;
 
-    Alert.alert(
-      "Clear All Searches",
-      "Are you sure you want to delete all saved searches? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: async () => {
-            const success = await clearAllSearches();
-            if (!success) {
-              Alert.alert(
-                "Error",
-                "Failed to clear searches. Please try again."
-              );
-            }
+    if (Platform.OS === "web") {
+      // Use custom modal for web
+      setShowClearAllConfirmation(true);
+    } else {
+      // Use native Alert for mobile
+      Alert.alert(
+        "Clear All Searches",
+        "Are you sure you want to delete all saved searches? This action cannot be undone.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Clear All",
+            style: "destructive",
+            onPress: performClearAll,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
+  };
+
+  // Perform the actual clear all operation
+  const performClearAll = async () => {
+    setIsDeleting(true);
+    setLocalError(null); // Clear any previous local errors
+
+    const success = await clearAllSearches();
+    setIsDeleting(false);
+
+    if (!success) {
+      if (Platform.OS === "web") {
+        setLocalError("Failed to clear searches. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to clear searches. Please try again.");
+      }
+    }
+
+    // Close confirmation modal
+    setShowClearAllConfirmation(false);
   };
 
   // Format date for display
@@ -402,10 +454,18 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
         </View>
       )}
 
-      {/* Error message */}
-      {error && (
+      {/* Error message - show both context error and local error */}
+      {(error || localError) && (
         <View style={styles(colors).errorContainer}>
-          <Text style={styles(colors).errorText}>{error}</Text>
+          <Text style={styles(colors).errorText}>{error || localError}</Text>
+          {localError && (
+            <TouchableOpacity
+              style={styles(colors).dismissErrorButton}
+              onPress={() => setLocalError(null)}
+            >
+              <Text style={styles(colors).dismissErrorText}>Dismiss</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -442,6 +502,114 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
           </Text>
         </View>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={showDeleteConfirmation}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowDeleteConfirmation(false);
+          setSearchToDelete(null);
+        }}
+      >
+        <View style={styles(colors).modalOverlay}>
+          <View style={styles(colors).confirmationModalContainer}>
+            <View style={styles(colors).confirmationModalHeader}>
+              <Text style={styles(colors).confirmationModalTitle}>
+                Delete Search
+              </Text>
+            </View>
+
+            <View style={styles(colors).confirmationModalContent}>
+              <Text style={styles(colors).confirmationText}>
+                Are you sure you want to delete "{searchToDelete?.name}"?
+              </Text>
+              <Text style={styles(colors).confirmationSubtext}>
+                This action cannot be undone.
+              </Text>
+
+              <View style={styles(colors).confirmationModalButtons}>
+                <TouchableOpacity
+                  style={styles(colors).cancelButton}
+                  onPress={() => {
+                    setShowDeleteConfirmation(false);
+                    setSearchToDelete(null);
+                  }}
+                  disabled={isDeleting}
+                >
+                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).deleteButton,
+                    isDeleting && styles(colors).disabledButton,
+                  ]}
+                  onPress={() =>
+                    searchToDelete && performDeleteSearch(searchToDelete)
+                  }
+                  disabled={isDeleting}
+                >
+                  <Text style={styles(colors).deleteButtonText}>
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Clear All Confirmation Modal */}
+      <Modal
+        visible={showClearAllConfirmation}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowClearAllConfirmation(false)}
+      >
+        <View style={styles(colors).modalOverlay}>
+          <View style={styles(colors).confirmationModalContainer}>
+            <View style={styles(colors).confirmationModalHeader}>
+              <Text style={styles(colors).confirmationModalTitle}>
+                Clear All Searches
+              </Text>
+            </View>
+
+            <View style={styles(colors).confirmationModalContent}>
+              <Text style={styles(colors).confirmationText}>
+                Are you sure you want to delete all saved searches?
+              </Text>
+              <Text style={styles(colors).confirmationSubtext}>
+                This action cannot be undone.
+              </Text>
+
+              <View style={styles(colors).confirmationModalButtons}>
+                <TouchableOpacity
+                  style={styles(colors).cancelButton}
+                  onPress={() => setShowClearAllConfirmation(false)}
+                  disabled={isDeleting}
+                >
+                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles(colors).deleteButton,
+                    isDeleting && styles(colors).disabledButton,
+                  ]}
+                  onPress={performClearAll}
+                  disabled={isDeleting}
+                >
+                  <Text style={styles(colors).deleteButtonText}>
+                    {isDeleting ? "Clearing..." : "Clear All"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit Modal */}
       <Modal
@@ -806,6 +974,78 @@ const styles = (colors: any) =>
     },
     disabledButton: {
       opacity: 0.6,
+    },
+
+    // Confirmation Modal Styles
+    confirmationModalContainer: {
+      width: "100%",
+      maxWidth: 350,
+      backgroundColor: colors.background,
+      borderRadius: 12,
+      overflow: "hidden",
+      elevation: 8,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+    },
+    confirmationModalHeader: {
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.headerBackground,
+    },
+    confirmationModalTitle: {
+      fontSize: 18,
+      fontWeight: "bold",
+      color: colors.text,
+      textAlign: "center",
+    },
+    confirmationModalContent: {
+      padding: 20,
+    },
+    confirmationText: {
+      fontSize: 16,
+      color: colors.text,
+      textAlign: "center",
+      marginBottom: 8,
+    },
+    confirmationSubtext: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: "center",
+      marginBottom: 20,
+    },
+    confirmationModalButtons: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+    },
+    deleteButton: {
+      flex: 1,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 8,
+      backgroundColor: colors.error,
+      marginLeft: 8,
+      alignItems: "center",
+    },
+    deleteButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    dismissErrorButton: {
+      marginTop: 8,
+      alignSelf: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+      borderRadius: 4,
+      backgroundColor: colors.error + "40",
+    },
+    dismissErrorText: {
+      color: colors.error,
+      fontSize: 12,
+      fontWeight: "500",
     },
   });
 
