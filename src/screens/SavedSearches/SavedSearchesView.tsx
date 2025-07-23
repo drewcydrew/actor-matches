@@ -447,7 +447,7 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
                   filterType === "person" && styles(colors).activeFilterText,
                 ]}
               >
-                Person ({getSearchesByType("person").length})
+                People ({getSearchesByType("person").length})
               </Text>
             </TouchableOpacity>
           </View>

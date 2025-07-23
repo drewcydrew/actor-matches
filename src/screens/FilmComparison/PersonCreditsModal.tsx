@@ -465,9 +465,7 @@ const PersonCreditsModal = ({
                 onPress={openPersonOptions}
               >
                 <Ionicons name="person-add" size={20} color={colors.primary} />
-                <Text style={styles(colors).selectPersonText}>
-                  Select Person
-                </Text>
+                <Text style={styles(colors).selectPersonText}>Update</Text>
               </TouchableOpacity>
 
               <TouchableOpacity

@@ -126,7 +126,7 @@ const MainScreen = () => {
                   : styles.inactiveTabText,
               ]}
             >
-              Compare by Media
+              Media
             </Text>
           </TouchableOpacity>
 
@@ -147,7 +147,7 @@ const MainScreen = () => {
                   : styles.inactiveTabText,
               ]}
             >
-              Compare by Person
+              People
             </Text>
           </TouchableOpacity>
 

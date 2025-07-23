@@ -384,10 +384,10 @@ const MediaCreditsModal = ({
                 <TouchableOpacity
                   style={styles(colors).selectMediaButton}
                   onPress={openMediaOptions}
-                  accessibilityLabel="Select media"
+                  accessibilityLabel="update"
                 >
                   <Ionicons name="film" size={20} color={colors.primary} />
-                  <Text style={styles(colors).selectMediaText}>Select</Text>
+                  <Text style={styles(colors).selectMediaText}>Update</Text>
                 </TouchableOpacity>
               )}
 
