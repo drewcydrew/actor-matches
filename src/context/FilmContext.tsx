@@ -597,64 +597,170 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         tmdbApi.getActorTVCredits(actorId),
       ]);
 
-      let combinedResults: MediaItem[] = [];
+      // Map to aggregate all roles for each media item
+      const mediaMap = new Map<
+        string,
+        {
+          mediaItem: MediaItem;
+          roles: ("cast" | "crew")[];
+          characters: string[];
+          jobs: string[];
+          departments: Set<string>;
+        }
+      >();
 
       // Process movie cast credits
       if (movieCreditsResponse.cast && movieCreditsResponse.cast.length > 0) {
-        const movieCastItems = movieCreditsResponse.cast
+        movieCreditsResponse.cast
           .filter((item) => item.release_date)
-          .map((item) => ({
-            ...convertToMediaItem(item, "movie"),
-            role_type: "cast" as const,
-          }));
-        combinedResults = [...combinedResults, ...movieCastItems];
+          .forEach((item) => {
+            const key = `${item.id}-movie`;
+
+            if (!mediaMap.has(key)) {
+              mediaMap.set(key, {
+                mediaItem: convertToMediaItem(item, "movie"),
+                roles: [],
+                characters: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const mediaData = mediaMap.get(key)!;
+            if (!mediaData.roles.includes("cast")) {
+              mediaData.roles.push("cast");
+            }
+            if (
+              item.character &&
+              !mediaData.characters.includes(item.character)
+            ) {
+              mediaData.characters.push(item.character);
+            }
+          });
       }
 
       // Process movie crew credits
       if (movieCreditsResponse.crew && movieCreditsResponse.crew.length > 0) {
-        const movieCrewItems = movieCreditsResponse.crew
+        movieCreditsResponse.crew
           .filter((item) => item.release_date)
-          .map((item) => ({
-            ...convertToMediaItem(item, "movie"),
-            role_type: "crew" as const,
-            character: item.job,
-            department: item.department,
-          }));
-        combinedResults = [...combinedResults, ...movieCrewItems];
+          .forEach((item) => {
+            const key = `${item.id}-movie`;
+
+            if (!mediaMap.has(key)) {
+              mediaMap.set(key, {
+                mediaItem: convertToMediaItem(item, "movie"),
+                roles: [],
+                characters: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const mediaData = mediaMap.get(key)!;
+            if (!mediaData.roles.includes("crew")) {
+              mediaData.roles.push("crew");
+            }
+            if (item.job && !mediaData.jobs.includes(item.job)) {
+              mediaData.jobs.push(item.job);
+            }
+            if (item.department) {
+              mediaData.departments.add(item.department);
+            }
+          });
       }
 
-      // Process TV cast credits - fix type issues
+      // Process TV cast credits
       if (tvCreditsResponse.cast && tvCreditsResponse.cast.length > 0) {
-        const tvCastItems = tvCreditsResponse.cast
-          // Type assertion to tell TypeScript these are TVShow objects
+        tvCreditsResponse.cast
           .filter((item: any) => item.first_air_date)
-          .map((item: any) => ({
-            ...convertToMediaItem(item, "tv"),
-            role_type: "cast" as const,
-          }));
-        combinedResults = [...combinedResults, ...tvCastItems];
+          .forEach((item: any) => {
+            const key = `${item.id}-tv`;
+
+            if (!mediaMap.has(key)) {
+              mediaMap.set(key, {
+                mediaItem: convertToMediaItem(item, "tv"),
+                roles: [],
+                characters: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const mediaData = mediaMap.get(key)!;
+            if (!mediaData.roles.includes("cast")) {
+              mediaData.roles.push("cast");
+            }
+            if (
+              item.character &&
+              !mediaData.characters.includes(item.character)
+            ) {
+              mediaData.characters.push(item.character);
+            }
+          });
       }
 
-      // Process TV crew credits - fix type issues
+      // Process TV crew credits
       if (tvCreditsResponse.crew && tvCreditsResponse.crew.length > 0) {
-        const tvCrewItems = tvCreditsResponse.crew
-          // Type assertion to tell TypeScript these are TVShow-like objects
+        tvCreditsResponse.crew
           .filter((item: any) => item.first_air_date)
-          .map((item: any) => ({
-            ...convertToMediaItem(
-              {
-                ...item,
-                name: item.name || item.title || "Unknown", // Ensure name exists for TV shows
-                media_type: "tv",
-              },
-              "tv"
-            ),
-            role_type: "crew" as const,
-            character: item.job,
-            department: item.department,
-          }));
-        combinedResults = [...combinedResults, ...tvCrewItems];
+          .forEach((item: any) => {
+            const key = `${item.id}-tv`;
+
+            if (!mediaMap.has(key)) {
+              mediaMap.set(key, {
+                mediaItem: convertToMediaItem(
+                  {
+                    ...item,
+                    name: item.name || item.title || "Unknown",
+                    media_type: "tv",
+                  },
+                  "tv"
+                ),
+                roles: [],
+                characters: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const mediaData = mediaMap.get(key)!;
+            if (!mediaData.roles.includes("crew")) {
+              mediaData.roles.push("crew");
+            }
+            if (item.job && !mediaData.jobs.includes(item.job)) {
+              mediaData.jobs.push(item.job);
+            }
+            if (item.department) {
+              mediaData.departments.add(item.department);
+            }
+          });
       }
+
+      // Convert aggregated data to MediaItem objects
+      const combinedResults: MediaItem[] = Array.from(mediaMap.values()).map(
+        ({ mediaItem, roles, characters, jobs, departments }) =>
+          ({
+            ...mediaItem,
+            // Combine character information
+            character:
+              characters.length > 0 ? characters.join(", ") : undefined,
+            // Add job information for crew roles
+            job: jobs.length > 0 ? jobs.join(", ") : undefined,
+            department:
+              departments.size > 0
+                ? Array.from(departments).join(", ")
+                : undefined,
+            // Set role_type based on aggregated roles
+            role_type:
+              roles.includes("cast") && roles.includes("crew")
+                ? "cast" // Prioritize cast when both exist
+                : roles.includes("crew")
+                ? "crew"
+                : "cast",
+            // Add roles array for consistent badge logic
+            roles: roles,
+          } as MediaItem & { roles: ("cast" | "crew")[] })
+      );
 
       // Sort all results by popularity (descending)
       const sortedResults = combinedResults.sort(

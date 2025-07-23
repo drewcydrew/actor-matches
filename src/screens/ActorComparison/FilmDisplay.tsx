@@ -118,6 +118,34 @@ const FilmDisplay = ({
     []
   );
 
+  // Add a new function to get role type badge with combined role support
+  const getRoleTypeBadge = (roleType?: string) => {
+    if (!roleType) return null;
+
+    const isCrew = roleType === "crew";
+
+    return (
+      <View
+        style={[
+          styles(colors).roleTypeBadge,
+          {
+            backgroundColor: isCrew ? colors.secondary : colors.primary,
+            marginLeft: 8,
+          },
+        ]}
+      >
+        <Ionicons
+          name={isCrew ? "construct-outline" : "people-outline"}
+          size={12}
+          color="#fff"
+        />
+        <Text style={styles(colors).mediaTypeBadgeText}>
+          {isCrew ? "CREW" : "CAST"}
+        </Text>
+      </View>
+    );
+  };
+
   // Memoize render item function
   const renderMediaItem = useCallback(
     ({ item, index }: { item: [MediaItem, MediaItem]; index: number }) => {
@@ -161,17 +189,40 @@ const FilmDisplay = ({
 
               {actor1Id && actor2Id ? (
                 <>
+                  {/* Show character or job information for first actor */}
                   <Text style={styles(colors).character}>
-                    {`${actor1Name} as: ${media1.character || "Unknown role"}`}
+                    {`${actor1Name}: ${
+                      media1.character || media1.job || "Unknown role"
+                    }`}
                   </Text>
+                  {/* Show character or job information for second actor */}
                   <Text style={styles(colors).character}>
-                    {`${actor2Name} as: ${media2.character || "Unknown role"}`}
+                    {`${actor2Name}: ${
+                      media2.character || media2.job || "Unknown role"
+                    }`}
                   </Text>
                 </>
               ) : (
-                <Text style={styles(colors).character}>
-                  {`as: ${media1.character || "Unknown role"}`}
-                </Text>
+                <>
+                  {/* Show character information if it exists */}
+                  {media1.character && (
+                    <Text style={styles(colors).character}>
+                      {`as: ${media1.character}`}
+                    </Text>
+                  )}
+                  {/* Show job information if it exists and no character */}
+                  {media1.job && !media1.character && (
+                    <Text style={styles(colors).character}>
+                      {`job: ${media1.job}`}
+                    </Text>
+                  )}
+                  {/* Show department if available */}
+                  {media1.department && (
+                    <Text style={styles(colors).department}>
+                      {media1.department}
+                    </Text>
+                  )}
+                </>
               )}
             </View>
           </View>
@@ -223,32 +274,6 @@ const FilmDisplay = ({
         />
         <Text style={styles(colors).mediaTypeBadgeText}>
           {isTVShow ? "TV SHOW" : "MOVIE"}
-        </Text>
-      </View>
-    );
-  };
-
-  // Add a new function to get role type badge
-  const getRoleTypeBadge = (roleType?: string) => {
-    const isCrew = roleType === "crew";
-
-    return (
-      <View
-        style={[
-          styles(colors).roleTypeBadge,
-          {
-            backgroundColor: isCrew ? colors.secondary : colors.primary,
-            marginLeft: 8,
-          },
-        ]}
-      >
-        <Ionicons
-          name={isCrew ? "construct-outline" : "people-outline"}
-          size={12}
-          color="#fff"
-        />
-        <Text style={styles(colors).mediaTypeBadgeText}>
-          {isCrew ? "CREW" : "CAST"}
         </Text>
       </View>
     );
@@ -522,6 +547,12 @@ const styles = (colors: any) =>
       fontSize: 12,
       color: colors.textSecondary,
       fontStyle: "italic",
+    },
+    department: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: "500",
+      marginTop: 2,
     },
     error: {
       color: colors.error,

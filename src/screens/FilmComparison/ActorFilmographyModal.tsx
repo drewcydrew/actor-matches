@@ -32,12 +32,13 @@ interface ActorFilmographyModalProps {
   actorProfilePath?: string;
 }
 
-type MediaType = "movies" | "tv" | "all";
+type MediaType = "all" | "movies" | "tv";
 
-// Keep ExtendedMediaItem for additional properties
+// Keep ExtendedMediaItem for additional properties - updated to include roles array
 type ExtendedMediaItem = MediaItem & {
   role_type?: "cast" | "crew";
   department?: string;
+  roles?: ("cast" | "crew")[]; // Add roles array to track all role types
 };
 
 const ActorFilmographyModal = ({
@@ -64,7 +65,7 @@ const ActorFilmographyModal = ({
     null
   );
   const [showItemOptions, setShowItemOptions] = useState(false);
-  const [mediaType, setMediaType] = useState<MediaType>("movies");
+  const [mediaType, setMediaType] = useState<MediaType>("all");
   const [showActorOptions, setShowActorOptions] = useState(false);
   const [allCredits, setAllCredits] = useState<ExtendedMediaItem[]>([]);
 
@@ -95,16 +96,25 @@ const ActorFilmographyModal = ({
       filtered = allCredits.filter((item) => item.media_type === "tv");
     }
 
-    if (filtered.length === 0) {
-      setError(
-        `No ${mediaType === "all" ? "media" : mediaType} found for this person`
-      );
-    } else {
-      setError("");
-    }
-
     return filtered;
   }, [allCredits, mediaType]);
+
+  // Memoize media counts to match FilmDisplay
+  const mediaCounts = useMemo(() => {
+    if (!allCredits || allCredits.length === 0)
+      return { movies: 0, tv: 0, all: 0 };
+
+    const movies = allCredits.filter(
+      (item) => item.media_type === "movie"
+    ).length;
+    const tv = allCredits.filter((item) => item.media_type === "tv").length;
+
+    return {
+      movies,
+      tv,
+      all: allCredits.length,
+    };
+  }, [allCredits]);
 
   // No changes needed for fetchActorCredits
   const fetchActorCredits = async () => {
@@ -171,6 +181,7 @@ const ActorFilmographyModal = ({
       id: actorId,
       name: actorName,
       profile_path: actorProfilePath,
+      roles: ["cast"], // Add required roles array
     };
 
     if (option === "actor1" && onSelectActor1) {
@@ -192,6 +203,148 @@ const ActorFilmographyModal = ({
       item.character?.substring(0, 10) || ""
     }-${index}`;
   }, []);
+
+  // Get role type badge for media items - updated to handle combined roles properly
+  const getRoleTypeBadge = (item: ExtendedMediaItem) => {
+    // Use roles array if available (from aggregated data), otherwise fall back to individual checks
+    const roles = item.roles || [];
+
+    // If we have roles array, use it directly (consistent with ActorDisplay)
+    if (roles.length > 0) {
+      const hasCast = roles.includes("cast");
+      const hasCrew = roles.includes("crew");
+
+      if (hasCast && hasCrew) {
+        // Show combined badges for items with both cast and crew roles
+        return (
+          <View style={styles(colors).combinedRoleBadge}>
+            <View
+              style={[
+                styles(colors).roleTypeBadge,
+                { backgroundColor: colors.primary, marginRight: 4 },
+              ]}
+            >
+              <Ionicons name="people-outline" size={8} color="#fff" />
+              <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+            </View>
+            <View
+              style={[
+                styles(colors).roleTypeBadge,
+                { backgroundColor: colors.secondary },
+              ]}
+            >
+              <Ionicons name="construct-outline" size={8} color="#fff" />
+              <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+            </View>
+          </View>
+        );
+      }
+
+      // Single role badge based on roles array
+      const isCrew = hasCrew && !hasCast;
+      return (
+        <View
+          style={[
+            styles(colors).roleTypeBadge,
+            { backgroundColor: isCrew ? colors.secondary : colors.primary },
+          ]}
+        >
+          <Ionicons
+            name={isCrew ? "construct-outline" : "people-outline"}
+            size={10}
+            color="#fff"
+          />
+          <Text style={styles(colors).roleTypeBadgeText}>
+            {isCrew ? "CREW" : "CAST"}
+          </Text>
+        </View>
+      );
+    }
+
+    // Fallback logic for items without roles array - check aggregated data
+    const hasCharacter = !!item.character;
+    const hasJob = !!item.job;
+    const hasBothRoles = hasCharacter && hasJob;
+
+    if (hasBothRoles) {
+      // Show combined badges for items with both cast and crew roles
+      return (
+        <View style={styles(colors).combinedRoleBadge}>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginRight: 4 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+          </View>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single role badge - determine from available data
+    const roleType = item.role_type;
+    if (!roleType) {
+      // If no role_type, infer from data
+      if (hasJob && !hasCharacter) {
+        // Only has job info, likely crew
+        return (
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={10} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+          </View>
+        );
+      } else if (hasCharacter) {
+        // Has character info, likely cast
+        return (
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary },
+            ]}
+          >
+            <Ionicons name="people-outline" size={10} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+          </View>
+        );
+      }
+      return null;
+    }
+
+    const isCrew = roleType === "crew";
+    return (
+      <View
+        style={[
+          styles(colors).roleTypeBadge,
+          { backgroundColor: isCrew ? colors.secondary : colors.primary },
+        ]}
+      >
+        <Ionicons
+          name={isCrew ? "construct-outline" : "people-outline"}
+          size={10}
+          color="#fff"
+        />
+        <Text style={styles(colors).roleTypeBadgeText}>
+          {isCrew ? "CREW" : "CAST"}
+        </Text>
+      </View>
+    );
+  };
 
   // Updated to handle MediaItem consistently
   const renderMediaItem = useCallback(
@@ -233,21 +386,23 @@ const ActorFilmographyModal = ({
               <Text style={styles(colors).mediaTypeLabel}>
                 {isMovie ? "Movie" : "TV"}
               </Text>
+              {getRoleTypeBadge(item)}
             </View>
 
-            {/* Show different text based on whether it's cast or crew */}
-            {isCrew ? (
-              <View>
-                <Text style={styles(colors).department}>
-                  {item.department || "Crew"}
-                </Text>
-                <Text style={styles(colors).character}>
-                  {item.character || "Unknown role"}
-                </Text>
-              </View>
-            ) : item.character ? (
-              <Text style={styles(colors).character}>as {item.character}</Text>
-            ) : null}
+            {/* Show character information if available */}
+            {item.character && (
+              <Text style={styles(colors).character}>as: {item.character}</Text>
+            )}
+
+            {/* Show job information if available and different from character */}
+            {item.job && item.job !== item.character && (
+              <Text style={styles(colors).job}>job: {item.job}</Text>
+            )}
+
+            {/* Show department if available for crew roles */}
+            {isCrew && item.department && (
+              <Text style={styles(colors).department}>{item.department}</Text>
+            )}
 
             {/* Handle TV show episode count */}
             {!isMovie && item.episode_count && !isCrew && (
@@ -287,6 +442,9 @@ const ActorFilmographyModal = ({
     return media.media_type === "movie" ? media.title : media.name;
   };
 
+  // Determine if we should show the filter controls
+  const shouldShowFilters = allCredits.length > 0;
+
   return (
     <Modal
       visible={isVisible}
@@ -318,61 +476,61 @@ const ActorFilmographyModal = ({
             </View>
           </View>
 
-          {/* Media type selector - no changes needed */}
-          <View style={styles(colors).mediaTypeSelector}>
-            <TouchableOpacity
-              style={[
-                styles(colors).mediaTypeButton,
-                mediaType === "movies" &&
-                  styles(colors).selectedMediaTypeButton,
-              ]}
-              onPress={() => setMediaType("movies")}
-            >
-              <Text
+          {/* Filter controls - updated to match FilmDisplay style */}
+          {shouldShowFilters && (
+            <View style={styles(colors).filterContainer}>
+              <TouchableOpacity
                 style={[
-                  styles(colors).mediaTypeText,
-                  mediaType === "movies" &&
-                    styles(colors).selectedMediaTypeText,
+                  styles(colors).filterButton,
+                  mediaType === "all" && styles(colors).activeFilterButton,
                 ]}
+                onPress={() => setMediaType("all")}
               >
-                Movies
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    mediaType === "all" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  All ({mediaCounts.all})
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles(colors).mediaTypeButton,
-                mediaType === "tv" && styles(colors).selectedMediaTypeButton,
-              ]}
-              onPress={() => setMediaType("tv")}
-            >
-              <Text
+              <TouchableOpacity
                 style={[
-                  styles(colors).mediaTypeText,
-                  mediaType === "tv" && styles(colors).selectedMediaTypeText,
+                  styles(colors).filterButton,
+                  mediaType === "movies" && styles(colors).activeFilterButton,
                 ]}
+                onPress={() => setMediaType("movies")}
               >
-                TV Shows
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    mediaType === "movies" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  Movies ({mediaCounts.movies})
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles(colors).mediaTypeButton,
-                mediaType === "all" && styles(colors).selectedMediaTypeButton,
-              ]}
-              onPress={() => setMediaType("all")}
-            >
-              <Text
+              <TouchableOpacity
                 style={[
-                  styles(colors).mediaTypeText,
-                  mediaType === "all" && styles(colors).selectedMediaTypeText,
+                  styles(colors).filterButton,
+                  mediaType === "tv" && styles(colors).activeFilterButton,
                 ]}
+                onPress={() => setMediaType("tv")}
               >
-                All
-              </Text>
-            </TouchableOpacity>
-          </View>
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    mediaType === "tv" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  TV Shows ({mediaCounts.tv})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Credits content */}
           <View style={styles(colors).filmographyContainer}>
@@ -395,7 +553,13 @@ const ActorFilmographyModal = ({
                 initialNumToRender={15}
                 windowSize={10}
                 ListEmptyComponent={
-                  <Text style={styles(colors).emptyText}>No credits found</Text>
+                  <Text style={styles(colors).emptyText}>
+                    {mediaType !== "all"
+                      ? `No ${
+                          mediaType === "movies" ? "movies" : "TV shows"
+                        } found for this person`
+                      : "No credits found"}
+                  </Text>
                 }
               />
             )}
@@ -557,6 +721,34 @@ const styles = (colors: any) =>
     },
     closeButton: {
       padding: 4,
+    },
+    filterContainer: {
+      flexDirection: "row",
+      marginBottom: 0,
+      justifyContent: "space-between",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingBottom: 0,
+      backgroundColor: colors.background,
+    },
+    filterButton: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activeFilterButton: {
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    filterButtonText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "500",
+    },
+    activeFilterText: {
+      color: colors.primary,
+      fontWeight: "600",
     },
     mediaTypeSelector: {
       flexDirection: "row",
@@ -748,6 +940,31 @@ const styles = (colors: any) =>
     selectedOptionButton: {
       backgroundColor: colors.primary + "20", // Semi-transparent version of primary color
       borderColor: colors.primary,
+    },
+    roleTypeBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 8,
+      marginLeft: 6,
+    },
+    roleTypeBadgeText: {
+      color: "#fff",
+      fontSize: 8,
+      fontWeight: "bold",
+      marginLeft: 2,
+    },
+    job: {
+      fontSize: 12,
+      fontStyle: "italic",
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    combinedRoleBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginLeft: 6,
     },
   });
 

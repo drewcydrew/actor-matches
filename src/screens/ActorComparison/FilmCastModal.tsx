@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   Text,
@@ -13,6 +13,9 @@ import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext"; // Add this import
 import { Ionicons } from "@expo/vector-icons";
 import { MediaItem, Person } from "../../types/types"; // Use Person instead of CastMember
+
+// Define filter type
+type FilterMode = "all" | "cast" | "crew";
 
 interface FilmCastModalProps {
   filmId: number;
@@ -57,9 +60,44 @@ const FilmCastModal = ({
   const [selectedActor, setSelectedActor] = useState<Person | null>(null);
   const [showActorOptions, setShowActorOptions] = useState(false);
   const [showFilmOptions, setShowFilmOptions] = useState(false);
+  const [filterMode, setFilterMode] = useState<FilterMode>("all"); // Add filter state
 
   const isSelectedAsFilm1 = !!selectedFilm1 && selectedFilm1.id === filmId;
   const isSelectedAsFilm2 = !!selectedFilm2 && selectedFilm2.id === filmId;
+
+  // Memoize filtered cast to avoid recalculating on every render
+  const filteredCast = useMemo(() => {
+    if (!cast || cast.length === 0) {
+      return [];
+    }
+
+    if (filterMode === "all") {
+      return cast;
+    } else if (filterMode === "cast") {
+      return cast.filter((person) => person.roles.includes("cast"));
+    } else if (filterMode === "crew") {
+      return cast.filter((person) => person.roles.includes("crew"));
+    }
+    return [];
+  }, [cast, filterMode]);
+
+  // Memoize cast counts to avoid recalculating
+  const castCounts = useMemo(() => {
+    if (!cast || cast.length === 0) return { cast: 0, crew: 0, all: 0 };
+
+    const castCount = cast.filter((person) =>
+      person.roles.includes("cast")
+    ).length;
+    const crewCount = cast.filter((person) =>
+      person.roles.includes("crew")
+    ).length;
+
+    return {
+      cast: castCount,
+      crew: crewCount,
+      all: cast.length,
+    };
+  }, [cast]);
 
   // Update useEffect to use getCast from context
   useEffect(() => {
@@ -79,14 +117,13 @@ const FilmCastModal = ({
         }
 
         if (results.length > 0) {
-          // Filter to only show cast members (not crew)
-          const castMembers = results.filter(
-            (person) => person.role_type === "cast"
-          );
-          setCast(castMembers);
+          // Show all credits (both cast and crew) instead of filtering
+          setCast(results);
         } else {
           setError(
-            `No cast found for this ${mediaType === "tv" ? "TV show" : "film"}`
+            `No cast or crew found for this ${
+              mediaType === "tv" ? "TV show" : "film"
+            }`
           );
         }
       } catch (err) {
@@ -112,12 +149,19 @@ const FilmCastModal = ({
 
   const handleSelectOption = (option: "actor1" | "actor2") => {
     if (selectedActor) {
-      // Convert Person to Actor interface
+      // Pass the Person directly with required roles array
       const actorToPass: Person = {
         id: selectedActor.id,
         name: selectedActor.name,
         profile_path: selectedActor.profile_path,
-        //character: selectedActor.character,
+        character: selectedActor.character,
+        roles: selectedActor.roles, // Include the roles array
+        popularity: selectedActor.popularity,
+        gender: selectedActor.gender,
+        jobs: selectedActor.jobs,
+        departments: selectedActor.departments,
+        known_for_department: selectedActor.known_for_department,
+        known_for: selectedActor.known_for,
       };
 
       if (option === "actor1") {
@@ -133,57 +177,140 @@ const FilmCastModal = ({
     }
   };
 
+  // Get role type badge for credits
+  const getRoleTypeBadge = (roles: ("cast" | "crew")[]) => {
+    if (roles.length === 0) return null;
+
+    // If person has both roles, show a combined badge
+    if (roles.includes("cast") && roles.includes("crew")) {
+      return (
+        <View style={styles(colors).combinedRoleBadge}>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginRight: 4 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+          </View>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={8} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single role badge
+    const isCrew = roles.includes("crew");
+    return (
+      <View
+        style={[
+          styles(colors).roleTypeBadge,
+          { backgroundColor: isCrew ? colors.secondary : colors.primary },
+        ]}
+      >
+        <Ionicons
+          name={isCrew ? "construct-outline" : "people-outline"}
+          size={10}
+          color="#fff"
+        />
+        <Text style={styles(colors).roleTypeBadgeText}>
+          {isCrew ? "CREW" : "CAST"}
+        </Text>
+      </View>
+    );
+  };
+
   // Rest of the component remains mostly the same
   // Update renderActor function to work with Person instead of CastMember
-  const renderActor = ({ item }: { item: Person }) => (
-    <TouchableOpacity
-      style={[
-        styles(colors).actorItem,
-        selectedActor?.id === item.id ? styles(colors).selectedActorItem : null,
-        selectedActor1?.id === item.id ? styles(colors).actor1Item : null,
-        selectedActor2?.id === item.id ? styles(colors).actor2Item : null,
-      ]}
-      onPress={() => handleActorPress(item)}
-      activeOpacity={0.7}
-    >
-      {item.profile_path ? (
-        <Image
-          source={{
-            uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
-          }}
-          style={styles(colors).actorImage}
-        />
-      ) : (
-        <View style={styles(colors).noImageContainer}>
-          <Ionicons name="person" size={30} color={colors.textSecondary} />
-        </View>
-      )}
+  const renderActor = ({ item }: { item: Person }) => {
+    const hasCast = item.roles.includes("cast");
+    const hasCrew = item.roles.includes("crew");
 
-      <View style={styles(colors).actorDetails}>
-        <Text style={styles(colors).actorName}>{item.name}</Text>
-        {item.character && (
-          <Text style={styles(colors).character}>as {item.character}</Text>
+    return (
+      <TouchableOpacity
+        style={[
+          styles(colors).actorItem,
+          selectedActor?.id === item.id
+            ? styles(colors).selectedActorItem
+            : null,
+          selectedActor1?.id === item.id ? styles(colors).actor1Item : null,
+          selectedActor2?.id === item.id ? styles(colors).actor2Item : null,
+          // Add visual distinction for different role types
+          hasCast && hasCrew
+            ? styles(colors).combinedItem
+            : hasCrew
+            ? styles(colors).crewItem
+            : styles(colors).castItem,
+        ]}
+        onPress={() => handleActorPress(item)}
+        activeOpacity={0.7}
+      >
+        {item.profile_path ? (
+          <Image
+            source={{
+              uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
+            }}
+            style={styles(colors).actorImage}
+          />
+        ) : (
+          <View style={styles(colors).noImageContainer}>
+            <Ionicons name="person" size={30} color={colors.textSecondary} />
+          </View>
         )}
-      </View>
 
-      {/* Indicate if this actor is already selected */}
-      {selectedActor1?.id === item.id && (
-        <View style={styles(colors).actorIndicator}>
-          <Text style={styles(colors).indicatorText}>Actor 1</Text>
+        <View style={styles(colors).actorDetails}>
+          <View style={styles(colors).nameContainer}>
+            <Text style={styles(colors).actorName}>{item.name}</Text>
+            {getRoleTypeBadge(item.roles)}
+          </View>
+
+          {/* Show character information if available */}
+          {hasCast && item.character && (
+            <Text style={styles(colors).character}>as {item.character}</Text>
+          )}
+
+          {/* Show crew information if available */}
+          {hasCrew && (
+            <View>
+              {item.departments && item.departments.length > 0 && (
+                <Text style={styles(colors).department}>
+                  {item.departments.join(", ")}
+                </Text>
+              )}
+              {item.jobs && item.jobs.length > 0 && (
+                <Text style={styles(colors).job}>{item.jobs.join(", ")}</Text>
+              )}
+            </View>
+          )}
         </View>
-      )}
-      {selectedActor2?.id === item.id && (
-        <View
-          style={[
-            styles(colors).actorIndicator,
-            { backgroundColor: "#FF9800" },
-          ]}
-        >
-          <Text style={styles(colors).indicatorText}>Actor 2</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+
+        {/* Indicate if this actor is already selected */}
+        {selectedActor1?.id === item.id && (
+          <View style={styles(colors).actorIndicator}>
+            <Text style={styles(colors).indicatorText}>Actor 1</Text>
+          </View>
+        )}
+        {selectedActor2?.id === item.id && (
+          <View
+            style={[
+              styles(colors).actorIndicator,
+              { backgroundColor: "#FF9800" },
+            ]}
+          >
+            <Text style={styles(colors).indicatorText}>Actor 2</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   // Film selection functions remain the same
   const handleSelectFilm = (option: "film1" | "film2") => {
@@ -202,6 +329,9 @@ const FilmCastModal = ({
   };
 
   const canSelectFilm = onSelectFilm1 || onSelectFilm2;
+
+  // Determine if we should show the filter controls
+  const shouldShowFilters = cast.length > 0;
 
   return (
     <Modal
@@ -247,6 +377,62 @@ const FilmCastModal = ({
             </View>
           </View>
 
+          {/* Filter controls */}
+          {shouldShowFilters && (
+            <View style={styles(colors).filterContainer}>
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterMode === "all" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterMode("all")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterMode === "all" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  All ({castCounts.all})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterMode === "cast" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterMode("cast")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterMode === "cast" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  Cast ({castCounts.cast})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterMode === "crew" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterMode("crew")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterMode === "crew" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  Crew ({castCounts.crew})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Cast content */}
           <View style={styles(colors).castContainer}>
             {loading ? (
@@ -259,12 +445,14 @@ const FilmCastModal = ({
               </View>
             ) : (
               <FlatList
-                data={cast}
+                data={filteredCast}
                 renderItem={renderActor}
                 keyExtractor={(item) => item.id.toString()}
                 ListEmptyComponent={
                   <Text style={styles(colors).emptyText}>
-                    No cast information available
+                    {filterMode !== "all"
+                      ? `No ${filterMode} information available`
+                      : "No cast information available"}
                   </Text>
                 }
               />
@@ -582,6 +770,80 @@ const styles = (colors: any) =>
     selectedOptionButton: {
       backgroundColor: colors.primary + "20", // Semi-transparent version of primary color
       borderColor: colors.primary,
+    },
+    nameContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 4,
+    },
+    roleTypeBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 8,
+      marginLeft: 6,
+    },
+    roleTypeBadgeText: {
+      color: "#fff",
+      fontSize: 8,
+      fontWeight: "bold",
+      marginLeft: 2,
+    },
+    combinedRoleBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginLeft: 6,
+    },
+    combinedItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.accent || "#9C27B0", // Purple for combined roles
+    },
+    castItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.primary,
+    },
+    crewItem: {
+      borderLeftWidth: 4,
+      borderLeftColor: colors.secondary,
+    },
+    department: {
+      fontSize: 12,
+      fontWeight: "500",
+      color: colors.primary,
+      marginTop: 2,
+    },
+    job: {
+      fontSize: 12,
+      fontStyle: "italic",
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    // Filter controls
+    filterContainer: {
+      flexDirection: "row",
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    filterButton: {
+      flex: 1,
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    activeFilterButton: {
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    filterButtonText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "500",
+    },
+    activeFilterText: {
+      color: colors.primary,
+      fontWeight: "600",
     },
   });
 
