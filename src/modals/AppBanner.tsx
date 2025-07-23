@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
   useColorScheme,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
 interface AppBannerProps {
@@ -40,7 +41,12 @@ const AppBanner = ({
 }: AppBannerProps) => {
   const colorScheme = useColorScheme();
   const [isSessionDismissed, setIsSessionDismissed] = useState(false);
+  const [isPermanentlyDismissed, setIsPermanentlyDismissed] = useState(false);
   const [showAndroidModal, setShowAndroidModal] = useState(false);
+
+  const BANNER_DISMISSED_KEY = `@app_banner_dismissed_${appName
+    .replace(/\s+/g, "_")
+    .toLowerCase()}`;
 
   // Neutral color scheme with optional overrides
   const colors = {
@@ -53,8 +59,36 @@ const AppBanner = ({
       textColor || (colorScheme === "dark" ? "#CCCCCC" : "#666666"),
   };
 
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      checkPermanentDismissal();
+    }
+  }, []);
+
+  const checkPermanentDismissal = async () => {
+    try {
+      const dismissed = await AsyncStorage.getItem(BANNER_DISMISSED_KEY);
+      if (dismissed === "true") {
+        setIsPermanentlyDismissed(true);
+      }
+    } catch (error) {
+      console.log("Error checking banner dismissal status:", error);
+    }
+  };
+
   const handleDismiss = () => {
     setIsSessionDismissed(true);
+  };
+
+  const handlePermanentDismiss = async () => {
+    try {
+      await AsyncStorage.setItem(BANNER_DISMISSED_KEY, "true");
+      setIsPermanentlyDismissed(true);
+    } catch (error) {
+      console.log("Error saving banner dismissal status:", error);
+      // Fallback to session dismiss if AsyncStorage fails
+      setIsSessionDismissed(true);
+    }
   };
 
   const handlePrivacyPolicy = () => {
@@ -83,8 +117,8 @@ const AppBanner = ({
     Linking.openURL(androidTestersGroupUrl);
   };
 
-  // Don't show if session dismissed
-  if (isSessionDismissed) {
+  // Don't show if session dismissed or permanently dismissed
+  if (isSessionDismissed || isPermanentlyDismissed) {
     return null;
   }
 
@@ -287,6 +321,33 @@ const AppBanner = ({
                   style={[styles.mobileLinkButtonText, { color: colors.text }]}
                 >
                   Privacy Policy / User Guide
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.dismissButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.background,
+                  },
+                ]}
+                onPress={handlePermanentDismiss}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="eye-off-outline"
+                  size={12}
+                  color={colors.textSecondary}
+                  style={styles.buttonIcon}
+                />
+                <Text
+                  style={[
+                    styles.dismissButtonText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Don't show again
                 </Text>
               </TouchableOpacity>
             </View>
@@ -502,6 +563,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     margin: 6,
     borderWidth: 1,
+  },
+  dismissButtonText: {
+    fontSize: 10,
+    fontWeight: "400",
+  },
+  dismissButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Modal styles
   modalOverlay: {
