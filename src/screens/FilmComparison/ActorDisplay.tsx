@@ -45,9 +45,9 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
     if (filterMode === "all") {
       return castMembers;
     } else if (filterMode === "cast") {
-      return castMembers.filter((pair) => pair[0].role_type === "cast");
+      return castMembers.filter((pair) => pair[0].roles.includes("cast"));
     } else if (filterMode === "crew") {
-      return castMembers.filter((pair) => pair[0].role_type === "crew");
+      return castMembers.filter((pair) => pair[0].roles.includes("crew"));
     }
     return [];
   }, [castMembers, filterMode]);
@@ -57,17 +57,17 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
     if (!castMembers || castMembers.length === 0)
       return { cast: 0, crew: 0, all: 0 };
 
-    const castCount = castMembers.filter(
-      (pair) => pair[0].role_type === "cast"
+    const castCount = castMembers.filter((pair) =>
+      pair[0].roles.includes("cast")
     ).length;
-    const crewCount = castMembers.filter(
-      (pair) => pair[0].role_type === "crew"
+    const crewCount = castMembers.filter((pair) =>
+      pair[0].roles.includes("crew")
     ).length;
 
     return {
       cast: castCount,
       crew: crewCount,
-      all: castCount + crewCount,
+      all: castMembers.length,
     };
   }, [castMembers]);
 
@@ -92,21 +92,26 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
 
   // Memoize the key extractor
   const keyExtractor = useCallback((item: [Person, Person], index: number) => {
-    return `${item[0].id}-${item[0].role_type}-${index}`;
+    return `${item[0].id}-${item[0].roles.join("-")}-${index}`;
   }, []);
 
   // Memoize the render item function
   const renderPersonItem = useCallback(
     ({ item, index }: { item: [Person, Person]; index: number }) => {
       const [person1, person2] = item;
-      const isCrew = person1.role_type === "crew";
+      const hasCrew = person1.roles.includes("crew");
+      const hasCast = person1.roles.includes("cast");
 
       return (
         <TouchableOpacity
           key={`${person1.id}-${index}`}
           style={[
             styles(colors).actorItem,
-            isCrew ? styles(colors).crewItem : styles(colors).castItem,
+            hasCrew && hasCast
+              ? styles(colors).combinedItem
+              : hasCrew
+              ? styles(colors).crewItem
+              : styles(colors).castItem,
           ]}
           onPress={() => handleActorPress(person1)}
           disabled={
@@ -134,40 +139,41 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
             <View style={styles(colors).actorInfo}>
               <View style={styles(colors).nameContainer}>
                 <Text style={styles(colors).actorName}>{person1.name}</Text>
-                {getRoleTypeBadge(person1.role_type)}
+                {getRoleTypeBadge(person1.roles)}
               </View>
 
-              {person1.role_type === "crew" ? (
-                displayMode === "comparison" ? (
-                  <>
-                    <Text style={styles(colors).department}>
-                      {person1.departments?.join(", ") || "Crew"}
-                    </Text>
-                    <Text style={styles(colors).character}>
-                      {`in "${selectedMediaItem1?.name}": ${
-                        person1.jobs?.join(", ") || "Unknown job"
-                      }`}
-                    </Text>
-                    <Text style={styles(colors).character}>
-                      {`in "${selectedMediaItem2?.name}": ${
-                        person2.jobs?.join(", ") || "Unknown job"
-                      }`}
-                    </Text>
-                  </>
-                ) : (
-                  <View>
-                    <Text style={styles(colors).department}>
-                      {person1.departments?.join(", ") || "Crew"}
-                    </Text>
+              {/* Cast character information */}
+              {hasCast && person1.character && (
+                <Text style={styles(colors).character}>
+                  {`as: ${person1.character}`}
+                </Text>
+              )}
+
+              {/* Crew information */}
+              {hasCrew && (
+                <View>
+                  <Text style={styles(colors).department}>
+                    {person1.departments?.join(", ") || "Crew"}
+                  </Text>
+                  {displayMode === "comparison" ? (
+                    <>
+                      <Text style={styles(colors).character}>
+                        {`in "${selectedMediaItem1?.name}": ${
+                          person1.jobs?.join(", ") || "Unknown job"
+                        }`}
+                      </Text>
+                      <Text style={styles(colors).character}>
+                        {`in "${selectedMediaItem2?.name}": ${
+                          person2.jobs?.join(", ") || "Unknown job"
+                        }`}
+                      </Text>
+                    </>
+                  ) : (
                     <Text style={styles(colors).character} numberOfLines={2}>
                       {person1.jobs?.join(", ") || "Unknown job"}
                     </Text>
-                  </View>
-                )
-              ) : (
-                <Text style={styles(colors).character}>
-                  {`as: ${person1.character || "Unknown role"}`}
-                </Text>
+                  )}
+                </View>
               )}
             </View>
           </View>
@@ -210,9 +216,37 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
   };
 
   // Get role type badge
-  const getRoleTypeBadge = (roleType: string | undefined) => {
-    const isCrew = roleType === "crew";
+  const getRoleTypeBadge = (roles: ("cast" | "crew")[]) => {
+    if (roles.length === 0) return null;
 
+    // If person has both roles, show a combined badge
+    if (roles.includes("cast") && roles.includes("crew")) {
+      return (
+        <View style={styles(colors).combinedRoleBadge}>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.primary, marginRight: 4 },
+            ]}
+          >
+            <Ionicons name="people-outline" size={10} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CAST</Text>
+          </View>
+          <View
+            style={[
+              styles(colors).roleTypeBadge,
+              { backgroundColor: colors.secondary },
+            ]}
+          >
+            <Ionicons name="construct-outline" size={10} color="#fff" />
+            <Text style={styles(colors).roleTypeBadgeText}>CREW</Text>
+          </View>
+        </View>
+      );
+    }
+
+    // Single role badge
+    const isCrew = roles.includes("crew");
     return (
       <View
         style={[
@@ -347,7 +381,7 @@ const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
   );
 };
 
-// Updated styles with filter controls
+// Updated styles with combined role support
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
@@ -408,6 +442,15 @@ const styles = (colors: any) =>
     crewItem: {
       borderLeftWidth: 3,
       borderLeftColor: colors.secondary,
+    },
+    combinedRoleBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginLeft: 8,
+    },
+    combinedItem: {
+      borderLeftWidth: 3,
+      borderLeftColor: colors.accent || "#9C27B0", // Purple for combined roles
     },
     department: {
       fontSize: 13,

@@ -4,7 +4,7 @@ export interface Person {
   profile_path?: string;
   gender?: number;
   popularity?: number;
-  role_type?: "cast" | "crew"; // Discriminator field to identify type
+  roles: ("cast" | "crew")[]; // Changed from role_type to roles array
   known_for_department?: string; // Optional field for known for department
   known_for?: Array<{ title?: string; name?: string }>;
 

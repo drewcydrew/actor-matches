@@ -86,14 +86,14 @@ const DEFAULT_ACTOR_1: Person = {
   id: 31,
   name: "Tom Hanks",
   profile_path: "/xndWFsBlClOJFRdhSt4NBwiPq2o.jpg",
-  role_type: "cast", // Optional role type for actors
+  roles: ["cast"], // Changed from role_type to roles array
 };
 
 const DEFAULT_ACTOR_2: Person = {
   id: 192,
   name: "Morgan Freeman",
   profile_path: "/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
-  role_type: "cast", // Optional role type for actors
+  roles: ["cast"], // Changed from role_type to roles array
 };
 
 // Define interfaces
@@ -355,8 +355,22 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
 
     try {
-      let castMembers: Person[] = [];
-      let crewMembers: Person[] = [];
+      // Map to aggregate all roles for each person
+      const personMap = new Map<
+        number,
+        {
+          id: number;
+          name: string;
+          profile_path?: string;
+          gender?: number;
+          popularity?: number;
+          roles: ("cast" | "crew")[];
+          character?: string;
+          jobs: string[];
+          departments: Set<string>;
+          known_for_department?: string;
+        }
+      >();
 
       // Handle movie and TV show credits separately to address type issues
       if (mediaType === "movie") {
@@ -365,56 +379,51 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         // Process movie cast members
         if (movieCastData.cast && movieCastData.cast.length > 0) {
-          castMembers = movieCastData.cast.map((member) => ({
-            id: member.id,
-            name: member.name,
-            profile_path: member.profile_path,
-            character: member.character || "Unknown role",
-            popularity: member.popularity || 0,
-            gender: member.gender,
-            role_type: "cast" as const,
-          }));
-        }
-
-        // Process movie crew members
-        if (movieCastData.crew && movieCastData.crew.length > 0) {
-          // Group crew members by person ID
-          const crewByPerson = new Map<
-            number,
-            {
-              person: any;
-              jobs: string[];
-              departments: Set<string>;
-            }
-          >();
-
-          movieCastData.crew.forEach((member) => {
-            if (!crewByPerson.has(member.id)) {
-              crewByPerson.set(member.id, {
-                person: member,
+          movieCastData.cast.forEach((member) => {
+            if (!personMap.has(member.id)) {
+              personMap.set(member.id, {
+                id: member.id,
+                name: member.name,
+                profile_path: member.profile_path,
+                gender: member.gender,
+                popularity: member.popularity || 0,
+                roles: [],
                 jobs: [],
                 departments: new Set(),
               });
             }
 
-            const crewData = crewByPerson.get(member.id)!;
-            crewData.jobs.push(member.job || "Unknown job");
-            crewData.departments.add(member.department || "Other");
+            const person = personMap.get(member.id)!;
+            if (!person.roles.includes("cast")) {
+              person.roles.push("cast");
+            }
+            person.character = member.character || "Unknown role";
           });
+        }
 
-          // Convert grouped crew data to Person objects
-          crewMembers = Array.from(crewByPerson.values()).map(
-            ({ person, jobs, departments }) => ({
-              id: person.id,
-              name: person.name,
-              profile_path: person.profile_path,
-              jobs: jobs,
-              departments: Array.from(departments),
-              popularity: person.popularity || 0,
-              gender: person.gender,
-              role_type: "crew" as const,
-            })
-          );
+        // Process movie crew members
+        if (movieCastData.crew && movieCastData.crew.length > 0) {
+          movieCastData.crew.forEach((member) => {
+            if (!personMap.has(member.id)) {
+              personMap.set(member.id, {
+                id: member.id,
+                name: member.name,
+                profile_path: member.profile_path,
+                gender: member.gender,
+                popularity: member.popularity || 0,
+                roles: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const person = personMap.get(member.id)!;
+            if (!person.roles.includes("crew")) {
+              person.roles.push("crew");
+            }
+            person.jobs.push(member.job || "Unknown job");
+            person.departments.add(member.department || "Other");
+          });
         }
       } else {
         // For TV shows, get both aggregate credits (cast) and regular credits (crew)
@@ -425,8 +434,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         // Process TV cast members from aggregate credits
         if (tvAggregateData.cast && tvAggregateData.cast.length > 0) {
-          castMembers = tvAggregateData.cast.map((member) => {
-            // Use type assertion to tell TypeScript about the expected structure
+          tvAggregateData.cast.forEach((member) => {
             const tvMember = member as {
               id: number;
               name: string;
@@ -438,6 +446,24 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
               order?: number;
             };
 
+            if (!personMap.has(tvMember.id)) {
+              personMap.set(tvMember.id, {
+                id: tvMember.id,
+                name: tvMember.name,
+                profile_path: tvMember.profile_path,
+                gender: tvMember.gender,
+                popularity: tvMember.popularity || 0,
+                roles: [],
+                jobs: [],
+                departments: new Set(),
+              });
+            }
+
+            const person = personMap.get(tvMember.id)!;
+            if (!person.roles.includes("cast")) {
+              person.roles.push("cast");
+            }
+
             // Extract character from roles array or set default
             const character =
               tvMember.roles && tvMember.roles.length > 0
@@ -445,69 +471,56 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
                     .map((role: { character: string }) => role.character)
                     .join(", ")
                 : "Unknown role";
-
-            return {
-              id: tvMember.id,
-              name: tvMember.name,
-              profile_path: tvMember.profile_path,
-              character,
-              popularity: tvMember.popularity || 0,
-              gender: tvMember.gender,
-              role_type: "cast" as const,
-              // Add TV-specific fields
-              ...(tvMember.total_episode_count
-                ? { total_episode_count: tvMember.total_episode_count }
-                : {}),
-            };
+            person.character = character;
           });
         }
 
         // Process TV crew members from regular credits
         if (tvRegularData.crew && tvRegularData.crew.length > 0) {
-          // Group crew members by person ID (same logic as movies)
-          const crewByPerson = new Map<
-            number,
-            {
-              person: any;
-              jobs: string[];
-              departments: Set<string>;
-            }
-          >();
-
           tvRegularData.crew.forEach((member) => {
-            if (!crewByPerson.has(member.id)) {
-              crewByPerson.set(member.id, {
-                person: member,
+            if (!personMap.has(member.id)) {
+              personMap.set(member.id, {
+                id: member.id,
+                name: member.name,
+                profile_path: member.profile_path,
+                gender: member.gender,
+                popularity: member.popularity || 0,
+                roles: [],
                 jobs: [],
                 departments: new Set(),
               });
             }
 
-            const crewData = crewByPerson.get(member.id)!;
-            crewData.jobs.push(member.job || "Unknown job");
-            crewData.departments.add(member.department || "Other");
+            const person = personMap.get(member.id)!;
+            if (!person.roles.includes("crew")) {
+              person.roles.push("crew");
+            }
+            person.jobs.push(member.job || "Unknown job");
+            person.departments.add(member.department || "Other");
           });
-
-          // Convert grouped crew data to Person objects
-          crewMembers = Array.from(crewByPerson.values()).map(
-            ({ person, jobs, departments }) => ({
-              id: person.id,
-              name: person.name,
-              profile_path: person.profile_path,
-              jobs: jobs,
-              departments: Array.from(departments),
-              popularity: person.popularity || 0,
-              gender: person.gender,
-              role_type: "crew" as const,
-            })
-          );
         }
       }
 
-      // Combine cast and crew and sort by popularity
-      const combinedResults = [...castMembers, ...crewMembers].sort(
-        (a, b) => (b.popularity || 0) - (a.popularity || 0)
+      // Convert aggregated data to Person objects
+      const combinedResults: Person[] = Array.from(personMap.values()).map(
+        (personData) => ({
+          id: personData.id,
+          name: personData.name,
+          profile_path: personData.profile_path,
+          gender: personData.gender,
+          popularity: personData.popularity,
+          roles: personData.roles,
+          character: personData.character,
+          jobs: personData.jobs.length > 0 ? personData.jobs : undefined,
+          departments:
+            personData.departments.size > 0
+              ? Array.from(personData.departments)
+              : undefined,
+        })
       );
+
+      // Sort by popularity
+      combinedResults.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
       if (combinedResults.length === 0) {
         return {
@@ -1052,10 +1065,18 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
       const personData = await tmdbApi.searchActor(query);
 
       if (personData.results && personData.results.length > 0) {
-        // Filter to acting roles and sort by popularity if available
-        const actorResults = personData.results.sort(
-          (a: Person, b: Person) => (b.popularity || 0) - (a.popularity || 0)
-        );
+        // Convert API results to Person format with roles array
+        const actorResults: Person[] = personData.results
+          .map((apiPerson) => ({
+            id: apiPerson.id,
+            name: apiPerson.name,
+            profile_path: apiPerson.profile_path,
+            known_for_department: apiPerson.known_for_department,
+            popularity: apiPerson.popularity,
+            known_for: apiPerson.known_for,
+            roles: ["cast"] as ("cast" | "crew")[], // Default to cast role for search results
+          }))
+          .sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
 
         if (actorResults.length > 0) {
           return { results: actorResults, error: null };
