@@ -17,11 +17,11 @@ import { Person } from "../../types/types";
 type FilterMode = "all" | "cast" | "crew";
 
 // Update props to use Person type
-interface ActorDisplayProps {
+interface PersonDisplayProps {
   onActorSelect?: (actor: Person) => void;
 }
 
-const ActorDisplay = ({ onActorSelect }: ActorDisplayProps) => {
+const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
   const { colors } = useTheme();
   const {
     selectedMediaItem1,
@@ -546,4 +546,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default ActorDisplay;
+export default PersonDisplay;

@@ -17,7 +17,7 @@ import { MediaItem } from "../../types/types"; // Remove CommonMediaItem import
 type FilterMode = "all" | "movies" | "tv";
 
 // Define our props
-interface FilmDisplayProps {
+interface MediaDisplayProps {
   actor1Id?: number;
   actor2Id?: number;
   actor1Name?: string;
@@ -25,13 +25,13 @@ interface FilmDisplayProps {
   onFilmSelect?: (media: MediaItem) => void;
 }
 
-const FilmDisplay = ({
+const MediaDisplay = ({
   actor1Id,
   actor2Id,
   actor1Name = "First actor",
   actor2Name = "Second actor",
   onFilmSelect,
-}: FilmDisplayProps) => {
+}: MediaDisplayProps) => {
   const { colors } = useTheme();
   const {
     commonMedia,
@@ -576,4 +576,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default FilmDisplay;
+export default MediaDisplay;

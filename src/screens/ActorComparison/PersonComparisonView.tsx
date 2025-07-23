@@ -3,13 +3,13 @@ import { StyleSheet, View, TouchableOpacity, Alert, Text } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
 import { useSavedSearches } from "../../context/SavedSearchesContext";
-import ActorSearch from "./ActorSearch";
-import FilmDisplay from "./FilmDisplay";
-import MediaCastModal from "./FilmCastModal";
+import ActorSearch from "./PersonSearch";
+import FilmDisplay from "./MediaDisplay";
+import MediaCastModal from "./MediaCreditsModal";
 import { MediaItem } from "../../types/types";
 import { Ionicons } from "@expo/vector-icons";
 
-const ActorComparisonView = () => {
+const PersonComparisonView = () => {
   const { colors } = useTheme();
   const {
     selectedCastMember1,
@@ -205,4 +205,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default ActorComparisonView;
+export default PersonComparisonView;

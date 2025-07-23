@@ -3,15 +3,15 @@ import { StyleSheet, View, TouchableOpacity, Alert } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
 import { useSavedSearches } from "../../context/SavedSearchesContext";
-import FilmSearch from "./FilmSearch";
-import ActorDisplay from "./ActorDisplay";
-import PersonCreditsModal from "./ActorFilmographyModal";
+import FilmSearch from "./MediaSearch";
+import ActorDisplay from "./PersonDisplay";
+import PersonCreditsModal from "./PersonCreditsModal";
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 import { Ionicons } from "@expo/vector-icons";
 import { Text } from "react-native";
 
-const FilmComparisonView = () => {
+const MediaComparisonView = () => {
   const { colors } = useTheme();
   const {
     selectedMediaItem1,
@@ -235,4 +235,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default FilmComparisonView;
+export default MediaComparisonView;

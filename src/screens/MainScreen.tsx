@@ -3,8 +3,8 @@ import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
 import React, { useState } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import FilmComparisonView from "./FilmComparison/FilmComparisonView";
-import ActorComparisonView from "./ActorComparison/ActorComparisonView";
+import FilmComparisonView from "./FilmComparison/MediaComparisonView";
+import ActorComparisonView from "./ActorComparison/PersonComparisonView";
 import SavedSearchesView from "./SavedSearches/SavedSearchesView";
 import AppBanner from "../modals/AppBanner";
 

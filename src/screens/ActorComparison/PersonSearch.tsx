@@ -24,7 +24,7 @@ const debounce = (func: Function, delay: number) => {
   };
 };
 
-interface ActorSearchProps {
+interface PersonSearchProps {
   onSelectActor: (actor: Person | null) => void; // Updated to accept null
   selectedActor?: Person | null;
   defaultQuery?: string;
@@ -32,13 +32,13 @@ interface ActorSearchProps {
   defaultActorId?: number;
 }
 
-const ActorSearch = ({
+const PersonSearch = ({
   onSelectActor,
   selectedActor,
   defaultQuery = "",
   performInitialSearch = false,
   defaultActorId,
-}: ActorSearchProps) => {
+}: PersonSearchProps) => {
   const { colors } = useTheme();
   const { searchPeople } = useFilmContext();
 
@@ -682,4 +682,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default ActorSearch;
+export default PersonSearch;

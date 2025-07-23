@@ -34,7 +34,7 @@ interface MediaCastModalProps {
   selectedMedia2?: MediaItem | null;
 }
 
-const MediaCastModal = ({
+const MediaCreditsModal = ({
   mediaId,
   mediaTitle = "Media",
   mediaPosterPath,
@@ -871,4 +871,4 @@ const styles = (colors: any) =>
     },
   });
 
-export default MediaCastModal;
+export default MediaCreditsModal;
