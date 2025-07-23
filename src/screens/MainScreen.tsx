@@ -5,10 +5,11 @@ import { useTheme } from "../context/ThemeContext";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FilmComparisonView from "./FilmComparison/FilmComparisonView";
 import ActorComparisonView from "./ActorComparison/ActorComparisonView";
+import SavedSearchesView from "./SavedSearches/SavedSearchesView";
 import AppBanner from "../modals/AppBanner";
 
 // Define comparison modes
-type ComparisonMode = "compareByFilm" | "compareByActor";
+type ComparisonMode = "compareByFilm" | "compareByActor" | "savedSearches";
 
 const MainScreen = () => {
   // Add state for comparison mode
@@ -47,10 +48,10 @@ const MainScreen = () => {
       borderBottomColor: colors.border,
     },
     modeTab: {
-      paddingHorizontal: 16,
+      paddingHorizontal: 12,
       paddingVertical: 8,
       borderRadius: 20,
-      marginHorizontal: 5,
+      marginHorizontal: 3,
     },
     activeTab: {
       backgroundColor: colors.primary,
@@ -69,6 +70,11 @@ const MainScreen = () => {
       color: colors.text,
     },
   });
+
+  // Handler for navigating to a specific tab from saved searches
+  const handleNavigateToTab = (tab: "compareByFilm" | "compareByActor") => {
+    setComparisonMode(tab);
+  };
 
   return (
     <View style={styles.container}>
@@ -144,6 +150,27 @@ const MainScreen = () => {
               Compare by Person
             </Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.modeTab,
+              comparisonMode === "savedSearches"
+                ? styles.activeTab
+                : styles.inactiveTab,
+            ]}
+            onPress={() => setComparisonMode("savedSearches")}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                comparisonMode === "savedSearches"
+                  ? styles.activeTabText
+                  : styles.inactiveTabText,
+              ]}
+            >
+              Saved Searches
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -152,8 +179,10 @@ const MainScreen = () => {
         {/* Render content based on selected mode */}
         {comparisonMode === "compareByFilm" ? (
           <FilmComparisonView />
-        ) : (
+        ) : comparisonMode === "compareByActor" ? (
           <ActorComparisonView />
+        ) : (
+          <SavedSearchesView onNavigateToTab={handleNavigateToTab} />
         )}
       </View>
     </View>

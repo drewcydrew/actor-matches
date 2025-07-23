@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, TouchableOpacity, Alert } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
+import { useSavedSearches } from "../../context/SavedSearchesContext";
 import FilmSearch from "./FilmSearch";
 import ActorDisplay from "./ActorDisplay";
-import PersonCreditsModal from "./ActorFilmographyModal"; // Updated import
+import PersonCreditsModal from "./ActorFilmographyModal";
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
+import { Ionicons } from "@expo/vector-icons";
+import { Text } from "react-native";
 
 const FilmComparisonView = () => {
   const { colors } = useTheme();
@@ -21,14 +24,66 @@ const FilmComparisonView = () => {
     setSelectedCastMember2,
   } = useFilmContext();
 
+  const { saveCurrentMediaComparison } = useSavedSearches();
+
   // Local state for person credits modal
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [isPersonCreditsVisible, setIsPersonCreditsVisible] = useState(false);
+
+  // Remove save modal state, keep only saving state
+  const [isSaving, setIsSaving] = useState(false);
 
   // Handle person selection
   const handlePersonSelect = (person: Person) => {
     setSelectedPerson(person);
     setIsPersonCreditsVisible(true);
+  };
+
+  // Handle save search button press - now immediate
+  const handleSaveSearch = async () => {
+    if (!selectedMediaItem1 && !selectedMediaItem2) {
+      Alert.alert(
+        "No Selection",
+        "Please select at least one media item before saving."
+      );
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      // Generate default name
+      const defaultName = generateDefaultSearchName();
+
+      await saveCurrentMediaComparison(
+        defaultName,
+        selectedMediaItem1,
+        selectedMediaItem2
+      );
+
+      // Show quick success message
+      Alert.alert(
+        "Saved!",
+        `"${defaultName}" has been saved to your searches.`
+      );
+    } catch (error) {
+      console.error("Error saving search:", error);
+      Alert.alert("Error", "Failed to save search. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Generate a default search name based on selected media
+  const generateDefaultSearchName = (): string => {
+    if (selectedMediaItem1 && selectedMediaItem2) {
+      return `${selectedMediaItem1.name} & ${selectedMediaItem2.name}`;
+    } else if (selectedMediaItem1) {
+      return `${selectedMediaItem1.name} Cast`;
+    } else if (selectedMediaItem2) {
+      return `${selectedMediaItem2.name} Cast`;
+    }
+    return "Media Comparison";
   };
 
   // Function to ensure media items have all required properties
@@ -55,6 +110,9 @@ const FilmComparisonView = () => {
     }
   };
 
+  // Check if we should show the save button
+  const shouldShowSaveButton = selectedMediaItem1 || selectedMediaItem2;
+
   return (
     <View style={styles(colors).container}>
       {/* First media search */}
@@ -73,6 +131,30 @@ const FilmComparisonView = () => {
       <View style={styles(colors).actorSection}>
         <ActorDisplay onActorSelect={handlePersonSelect} />
       </View>
+
+      {/* Floating Save Button */}
+      {shouldShowSaveButton && (
+        <TouchableOpacity
+          style={[
+            styles(colors).floatingSaveButton,
+            isSaving && styles(colors).disabledButton,
+          ]}
+          onPress={handleSaveSearch}
+          activeOpacity={0.8}
+          disabled={isSaving}
+        >
+          <Ionicons
+            name={isSaving ? "hourglass-outline" : "bookmark-outline"}
+            size={24}
+            color="#fff"
+          />
+          <Text style={styles(colors).saveButtonText}>
+            {isSaving ? "Saving..." : "Save"}
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Remove Save Search Modal */}
 
       {/* Show modal when person is selected */}
       {selectedPerson && (
@@ -124,6 +206,32 @@ const styles = (colors: any) =>
       minHeight: 200,
       borderBottomWidth: 1,
       borderBottomColor: colors.border,
+    },
+    // Floating Save Button
+    floatingSaveButton: {
+      position: "absolute",
+      bottom: 20,
+      right: 20,
+      backgroundColor: colors.primary,
+      borderRadius: 28,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      elevation: 6,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    },
+    saveButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "600",
+      marginLeft: 8,
+    },
+    disabledButton: {
+      opacity: 0.6,
     },
   });
 
