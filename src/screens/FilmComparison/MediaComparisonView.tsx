@@ -77,10 +77,30 @@ const MediaComparisonView = () => {
       // Generate default name
       const defaultName = generateDefaultSearchName();
 
-      // Use the new array-based method
+      // Generate description with all media items
+      const description = selectedMediaItems
+        .map((item) => {
+          const year =
+            item.media_type === "tv"
+              ? item.first_air_date
+                ? new Date(item.first_air_date).getFullYear()
+                : ""
+              : item.release_date
+              ? new Date(item.release_date).getFullYear()
+              : "";
+
+          const yearText = year ? ` (${year})` : "";
+          const typeText = item.media_type === "tv" ? " [TV]" : " [Movie]";
+
+          return `${item.name}${yearText}${typeText}`;
+        })
+        .join(", ");
+
+      // Use the new array-based method with generated description
       await saveCurrentMediaComparison(
         defaultName,
-        selectedMediaItems // Pass the entire array
+        selectedMediaItems,
+        description
       );
 
       if (Platform.OS === "web") {

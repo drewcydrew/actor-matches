@@ -70,10 +70,22 @@ const PersonComparisonView = () => {
       // Generate default name
       const defaultName = generateDefaultSearchName();
 
-      // Use the new array-based function directly
+      // Generate description with all selected people
+      const description = selectedCastMembers
+        .map((person) => {
+          const departmentText = person.known_for_department
+            ? ` (${person.known_for_department})`
+            : "";
+
+          return `${person.name}${departmentText}`;
+        })
+        .join(", ");
+
+      // Use the new array-based function with generated description
       await saveCurrentPersonComparison(
         defaultName,
-        selectedCastMembers // Pass the entire array
+        selectedCastMembers, // Pass the entire array
+        description
       );
 
       if (Platform.OS === "web") {

@@ -63,46 +63,11 @@ export const convertToMediaItem = (
   }
 };
 
-// Update default values to use the MediaItem type
-const DEFAULT_MEDIA_1: MediaItem = {
-  id: 238,
-  title: "The Godfather",
-  name: "The Godfather",
-  release_date: "1972-03-14",
-  popularity: 92.179,
-  overview:
-    "Spanning the years 1945 to 1955, a chronicle of the fictional Italian-American Corleone crime family. When organized crime family patriarch, Vito Corleone barely survives an attempt on his life, his youngest son, Michael steps in to take care of the would-be killers, launching a campaign of bloody revenge.",
-  poster_path: "/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
-  vote_average: 8.7,
-  media_type: "movie",
-};
-
-const DEFAULT_MEDIA_2: MediaItem = {
-  id: 242,
-  title: "The Godfather Part III",
-  name: "The Godfather Part III",
-  release_date: "1990-12-25",
-  popularity: 45.897,
-  overview:
-    "In the midst of trying to legitimize his business dealings in 1979 New York and Italy, aging mafia don, Michael Corleone seeks forgiveness for his sins while taking a young protege under his wing.",
-  poster_path: "/lm3pQ2QoQ16pextRsmnUbG2onES.jpg",
-  vote_average: 7.4,
-  media_type: "movie",
-};
-
-const DEFAULT_ACTOR_1: Person = {
-  id: 31,
-  name: "Tom Hanks",
-  profile_path: "/xndWFsBlClOJFRdhSt4NBwiPq2o.jpg",
-  roles: ["cast"], // Changed from role_type to roles array
-};
-
-const DEFAULT_ACTOR_2: Person = {
-  id: 192,
-  name: "Morgan Freeman",
-  profile_path: "/jPsLqiYGSofU4s6BjrxnefMfabb.jpg",
-  roles: ["cast"], // Changed from role_type to roles array
-};
+// Remove default values - we'll start with empty arrays
+// const DEFAULT_MEDIA_1: MediaItem = { ... };
+// const DEFAULT_MEDIA_2: MediaItem = { ... };
+// const DEFAULT_ACTOR_1: Person = { ... };
+// const DEFAULT_ACTOR_2: Person = { ... };
 
 // Define interfaces
 
@@ -267,15 +232,6 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           STORAGE_KEYS.CAST_MEMBER_2
         );
 
-        // Check if this is the first time loading (no storage keys exist at all)
-        const isFirstLoad =
-          storedMediaItemsString === null &&
-          storedMediaItem1String === null &&
-          storedMediaItem2String === null &&
-          storedCastMembersString === null &&
-          storedCastMember1String === null &&
-          storedCastMember2String === null;
-
         let mediaItemsArray: MediaItem[] = [];
 
         if (storedMediaItemsString) {
@@ -311,12 +267,9 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
             await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_1);
             await AsyncStorage.removeItem(STORAGE_KEYS.MEDIA_ITEM_2);
           }
-        } else if (isFirstLoad) {
-          // First time loading: Use defaults
-          mediaItemsArray = [DEFAULT_MEDIA_1, DEFAULT_MEDIA_2];
         }
 
-        // Set the media items array
+        // Set the media items array (will be empty if no stored data)
         setSelectedMediaItems(mediaItemsArray);
 
         // Handle cast members array loading
@@ -378,19 +331,15 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
             console.error("Error parsing legacy cast members:", parseError);
             castMembersArray = [];
           }
-        } else if (isFirstLoad) {
-          // First time loading: Use defaults
-          castMembersArray = [DEFAULT_ACTOR_1, DEFAULT_ACTOR_2];
         }
 
-        // Set the cast members array
+        // Set the cast members array (will be empty if no stored data)
         setSelectedCastMembersInternal(castMembersArray);
       } catch (error) {
         console.error("Error loading stored selections:", error);
-        // Fall back to defaults in case of error
-        const defaultArray = [DEFAULT_MEDIA_1, DEFAULT_MEDIA_2];
-        setSelectedMediaItems(defaultArray);
-        setSelectedCastMembersInternal([DEFAULT_ACTOR_1, DEFAULT_ACTOR_2]);
+        // Fall back to empty arrays in case of error
+        setSelectedMediaItems([]);
+        setSelectedCastMembersInternal([]);
       } finally {
         setIsLoading(false);
       }
@@ -399,7 +348,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     loadStoredData();
   }, []);
 
-  // Helper function to save media items array to storage
+  // Helper function to save media items to storage
   const saveMediaItemsToStorage = async (mediaItems: MediaItem[]) => {
     try {
       await AsyncStorage.setItem(
@@ -411,7 +360,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
-  // Helper function to save cast members array to storage - Updated to use array storage
+  // Helper function to save cast members to storage - Updated to use array storage
   const saveCastMembersToStorage = async (castMembers: Person[]) => {
     try {
       // Validate the data before saving
