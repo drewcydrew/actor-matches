@@ -22,12 +22,12 @@ interface MediaCastModalProps {
   mediaTitle?: string;
   mediaPosterPath?: string;
   mediaType?: "movie" | "tv";
-  onSelectActor1: (actor: Person) => void;
-  onSelectActor2: (actor: Person) => void;
+  onSelectActor1: (actor: Person) => void; // Keep for backward compatibility
+  onSelectActor2: (actor: Person) => void; // Keep for backward compatibility
   isVisible: boolean;
   onClose: () => void;
-  selectedActor1?: Person | null;
-  selectedActor2?: Person | null;
+  selectedActor1?: Person | null; // Keep for backward compatibility
+  selectedActor2?: Person | null; // Keep for backward compatibility
 }
 
 const MediaCreditsModal = ({
@@ -43,8 +43,15 @@ const MediaCreditsModal = ({
   selectedActor2,
 }: MediaCastModalProps) => {
   const { colors } = useTheme();
-  const { getCast, selectedMediaItems, addMediaItem, updateMediaItem } =
-    useFilmContext();
+  const {
+    getCast,
+    selectedMediaItems,
+    addMediaItem,
+    updateMediaItem,
+    selectedCastMembers,
+    addCastMember,
+    updateCastMember,
+  } = useFilmContext();
 
   // Update state type to use Person instead of CastMember
   const [cast, setCast] = useState<Person[]>([]);
@@ -132,40 +139,66 @@ const MediaCreditsModal = ({
     }
   }, [mediaId, isVisible, mediaType, getCast]);
 
+  // Check if this person is already in the array
+  const isPersonAlreadySelected = useCallback(
+    (personId: number): { isSelected: boolean; index: number } => {
+      const index = selectedCastMembers.findIndex(
+        (person) => person.id === personId
+      );
+      return { isSelected: index !== -1, index };
+    },
+    [selectedCastMembers]
+  );
+
+  // Add missing function to check if media is already selected
+  const isMediaAlreadySelected = useCallback(
+    (mediaId: number): { isSelected: boolean; index: number } => {
+      const index = selectedMediaItems.findIndex((item) => item.id === mediaId);
+      return { isSelected: index !== -1, index };
+    },
+    [selectedMediaItems]
+  );
+
   const handleActorPress = (actor: Person) => {
     setSelectedActor(actor);
     setShowActorOptions(true);
   };
 
-  const handleSelectOption = (option: "actor1" | "actor2") => {
-    if (selectedActor) {
-      // Pass the Person directly with required roles array
-      const actorToPass: Person = {
-        id: selectedActor.id,
-        name: selectedActor.name,
-        profile_path: selectedActor.profile_path,
-        character: selectedActor.character,
-        roles: selectedActor.roles, // Include the roles array
-        popularity: selectedActor.popularity,
-        gender: selectedActor.gender,
-        jobs: selectedActor.jobs,
-        departments: selectedActor.departments,
-        known_for_department: selectedActor.known_for_department,
-        known_for: selectedActor.known_for,
-      };
+  // Updated actor selection handler
+  const handleSelectActor = useCallback(
+    (option: "addNew" | "replaceAtIndex", replaceIndex?: number) => {
+      if (selectedActor) {
+        // Pass the Person directly with required roles array
+        const actorToPass: Person = {
+          id: selectedActor.id,
+          name: selectedActor.name,
+          profile_path: selectedActor.profile_path,
+          character: selectedActor.character,
+          roles: selectedActor.roles, // Include the roles array
+          popularity: selectedActor.popularity,
+          gender: selectedActor.gender,
+          jobs: selectedActor.jobs,
+          departments: selectedActor.departments,
+          known_for_department: selectedActor.known_for_department,
+          known_for: selectedActor.known_for,
+        };
 
-      if (option === "actor1") {
-        onSelectActor1(actorToPass);
-      } else {
-        onSelectActor2(actorToPass);
+        if (option === "addNew") {
+          // Add as new person to array
+          addCastMember(actorToPass);
+        } else if (option === "replaceAtIndex" && replaceIndex !== undefined) {
+          // Replace specific person in array
+          updateCastMember(replaceIndex, actorToPass);
+        }
+
+        // Close modal and reset states
+        onClose();
+        setShowActorOptions(false);
+        setSelectedActor(null);
       }
-
-      // Close modal and reset states
-      onClose();
-      setShowActorOptions(false);
-      setSelectedActor(null);
-    }
-  };
+    },
+    [selectedActor, addCastMember, updateCastMember, onClose]
+  );
 
   // Get role type badge for credits
   const getRoleTypeBadge = (roles: ("cast" | "crew")[]) => {
@@ -224,6 +257,9 @@ const MediaCreditsModal = ({
     const hasCast = item.roles.includes("cast");
     const hasCrew = item.roles.includes("crew");
 
+    // Check if this person is in the selected array
+    const { isSelected, index } = isPersonAlreadySelected(item.id);
+
     return (
       <TouchableOpacity
         style={[
@@ -231,8 +267,7 @@ const MediaCreditsModal = ({
           selectedActor?.id === item.id
             ? styles(colors).selectedActorItem
             : null,
-          selectedActor1?.id === item.id ? styles(colors).actor1Item : null,
-          selectedActor2?.id === item.id ? styles(colors).actor2Item : null,
+          isSelected ? styles(colors).arraySelectedItem : null,
           // Add visual distinction for different role types
           hasCast && hasCrew
             ? styles(colors).combinedItem
@@ -282,34 +317,108 @@ const MediaCreditsModal = ({
           )}
         </View>
 
-        {/* Indicate if this actor is already selected */}
-        {selectedActor1?.id === item.id && (
-          <View style={styles(colors).actorIndicator}>
-            <Text style={styles(colors).indicatorText}>Actor 1</Text>
-          </View>
-        )}
-        {selectedActor2?.id === item.id && (
-          <View
-            style={[
-              styles(colors).actorIndicator,
-              { backgroundColor: "#FF9800" },
-            ]}
-          >
-            <Text style={styles(colors).indicatorText}>Actor 2</Text>
+        {/* Show array indicators only */}
+        {isSelected && (
+          <View style={styles(colors).arrayIndicator}>
+            <Text style={styles(colors).indicatorText}>#{index + 1}</Text>
           </View>
         )}
       </TouchableOpacity>
     );
   };
 
-  // Check if this media is already in the array
-  const isMediaAlreadySelected = useCallback(
-    (mediaId: number): { isSelected: boolean; index: number } => {
-      const index = selectedMediaItems.findIndex((item) => item.id === mediaId);
-      return { isSelected: index !== -1, index };
-    },
-    [selectedMediaItems]
-  );
+  // Actor selection overlay
+  const renderActorSelectionOverlay = () => {
+    if (!showActorOptions || !selectedActor) return null;
+
+    const { isSelected, index } = isPersonAlreadySelected(selectedActor.id);
+
+    return (
+      <View style={styles(colors).optionsOverlay}>
+        <View style={styles(colors).optionsContainer}>
+          <Text style={styles(colors).optionsTitle}>
+            {isSelected
+              ? `"${selectedActor.name}" is already selected`
+              : `Add "${selectedActor.name}"`}
+          </Text>
+
+          {isSelected ? (
+            // Person is already selected - show update option
+            <>
+              <Text style={styles(colors).alreadySelectedText}>
+                This person is already in your selection at position {index + 1}
+                .
+              </Text>
+
+              <TouchableOpacity
+                style={styles(colors).optionButton}
+                onPress={() => handleSelectActor("replaceAtIndex", index)}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles(colors).optionText}>
+                  Update at position {index + 1}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Person is not selected - show add/replace options
+            <>
+              {/* Option to add as new */}
+              <TouchableOpacity
+                style={styles(colors).primaryOptionButton}
+                onPress={() => handleSelectActor("addNew")}
+              >
+                <Ionicons name="person-add-outline" size={20} color="#fff" />
+                <Text style={styles(colors).primaryOptionText}>
+                  Add as new selection
+                </Text>
+              </TouchableOpacity>
+
+              {/* Show existing selections for replacement */}
+              {selectedCastMembers.length > 0 && (
+                <>
+                  <Text style={styles(colors).sectionTitle}>
+                    Or replace existing:
+                  </Text>
+
+                  {selectedCastMembers.map((person, index) => (
+                    <TouchableOpacity
+                      key={`${person.id}-${index}`}
+                      style={styles(colors).optionButton}
+                      onPress={() => handleSelectActor("replaceAtIndex", index)}
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={20}
+                        color={colors.text}
+                      />
+                      <Text style={styles(colors).optionText}>
+                        Replace #{index + 1}: {person.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles(colors).cancelButton}
+            onPress={() => {
+              setShowActorOptions(false);
+              setSelectedActor(null);
+            }}
+          >
+            <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
 
   // Simplified media selection function - only array-based
   const handleSelectMedia = (
@@ -583,56 +692,8 @@ const MediaCreditsModal = ({
             )}
           </View>
 
-          {/* Actor selection options overlay */}
-          {showActorOptions && selectedActor && (
-            <View style={styles(colors).optionsOverlay}>
-              <View style={styles(colors).optionsContainer}>
-                <Text style={styles(colors).optionsTitle}>
-                  Add {selectedActor.name} as:
-                </Text>
-
-                <TouchableOpacity
-                  style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("actor1")}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles(colors).optionText}>
-                    Actor 1{" "}
-                    {selectedActor1 ? `(replace ${selectedActor1.name})` : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).optionButton}
-                  onPress={() => handleSelectOption("actor2")}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles(colors).optionText}>
-                    Actor 2{" "}
-                    {selectedActor2 ? `(replace ${selectedActor2.name})` : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).cancelButton}
-                  onPress={() => {
-                    setShowActorOptions(false);
-                    setSelectedActor(null);
-                  }}
-                >
-                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          {/* Updated actor selection overlay */}
+          {renderActorSelectionOverlay()}
 
           {/* Simplified media selection overlay */}
           {renderMediaSelectionOverlay()}
@@ -726,16 +787,12 @@ const styles = (colors: any) =>
     selectedActorItem: {
       backgroundColor: colors.selectedItem,
     },
-    actor1Item: {
+    arraySelectedItem: {
       borderLeftWidth: 4,
-      borderLeftColor: colors.primary,
+      borderLeftColor: colors.accent || "#9C27B0", // Purple for array selections
     },
-    actor2Item: {
-      borderLeftWidth: 4,
-      borderLeftColor: "#FF9800",
-    },
-    actorIndicator: {
-      backgroundColor: colors.primary,
+    arrayIndicator: {
+      backgroundColor: colors.accent || "#9C27B0",
       paddingHorizontal: 8,
       paddingVertical: 2,
       borderRadius: 4,

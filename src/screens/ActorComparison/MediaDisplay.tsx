@@ -11,34 +11,24 @@ import {
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext"; // Remove the convertCommonMediaToMediaItem import
 import { Ionicons } from "@expo/vector-icons";
-import { MediaItem } from "../../types/types"; // Remove CommonMediaItem import
+import { MediaItem, EnhancedMediaItem } from "../../types/types"; // Remove CommonMediaItem import
 
 // Define filter type
 type FilterMode = "all" | "movies" | "tv";
 
-// Define our props
+// Define our props - update to accept EnhancedMediaItem
 interface MediaDisplayProps {
-  actor1Id?: number;
-  actor2Id?: number;
-  actor1Name?: string;
-  actor2Name?: string;
-  onFilmSelect?: (media: MediaItem) => void;
+  onFilmSelect?: (media: EnhancedMediaItem) => void;
 }
 
-const MediaDisplay = ({
-  actor1Id,
-  actor2Id,
-  actor1Name = "First actor",
-  actor2Name = "Second actor",
-  onFilmSelect,
-}: MediaDisplayProps) => {
+const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
   const { colors } = useTheme();
   const {
     commonMedia,
     mediaLoading,
     mediaError,
-    setSelectedCastMember1,
-    setSelectedCastMember2,
+    clearCastMembers,
+    selectedCastMembers, // Get all selected cast members
   } = useFilmContext();
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
@@ -78,16 +68,15 @@ const MediaDisplay = ({
 
   // Memoize callbacks
   const handleClearActors = useCallback(() => {
-    setSelectedCastMember1(null);
-    setSelectedCastMember2(null);
-  }, [setSelectedCastMember1, setSelectedCastMember2]);
+    clearCastMembers();
+  }, [clearCastMembers]);
 
   const handleFilterChange = useCallback((mode: FilterMode) => {
     setFilterMode(mode);
   }, []);
 
   const handleMediaPress = useCallback(
-    (media: MediaItem) => {
+    (media: EnhancedMediaItem) => {
       if (onFilmSelect) {
         onFilmSelect(media);
       }
@@ -96,7 +85,7 @@ const MediaDisplay = ({
   );
 
   // Memoize helper functions
-  const getYear = useCallback((media: MediaItem): string => {
+  const getYear = useCallback((media: EnhancedMediaItem): string => {
     if (media.media_type === "tv") {
       return media.first_air_date
         ? new Date(media.first_air_date).getFullYear().toString()
@@ -110,7 +99,7 @@ const MediaDisplay = ({
 
   // Memoize key extractor
   const keyExtractor = useCallback(
-    (item: [MediaItem, MediaItem], index: number) => {
+    (item: [EnhancedMediaItem, EnhancedMediaItem], index: number) => {
       return `${item[0].media_type}-${item[0].id}-${
         item[0].role_type || "cast"
       }-${index}`;
@@ -118,8 +107,8 @@ const MediaDisplay = ({
     []
   );
 
-  // Add a new function to get role type badge with combined role support
-  const getRoleTypeBadge = (media: MediaItem) => {
+  // Add a new function to get role type badge with combined role support - update parameter type
+  const getRoleTypeBadge = (media: EnhancedMediaItem) => {
     // Check if the media item has a roles array (from aggregated data)
     const roles = (media as any).roles || [];
 
@@ -267,8 +256,14 @@ const MediaDisplay = ({
 
   // Memoize render item function
   const renderMediaItem = useCallback(
-    ({ item, index }: { item: [MediaItem, MediaItem]; index: number }) => {
-      const [media1, media2] = item;
+    ({
+      item,
+      index,
+    }: {
+      item: [EnhancedMediaItem, EnhancedMediaItem];
+      index: number;
+    }) => {
+      const [media1] = item; // We only need the first media item since commonMedia contains pairs
       const isTVShow = media1.media_type === "tv";
       const title = media1.media_type === "movie" ? media1.title : media1.name;
       const year = getYear(media1);
@@ -305,36 +300,55 @@ const MediaDisplay = ({
                 {getRoleTypeBadge(media1)}
               </View>
 
-              {actor1Id && actor2Id ? (
-                <>
-                  {/* Show character or job information for first actor */}
-                  <Text style={styles(colors).character}>
-                    {`${actor1Name}: ${
-                      media1.character || media1.job || "Unknown role"
-                    }`}
-                  </Text>
-                  {/* Show character or job information for second actor */}
-                  <Text style={styles(colors).character}>
-                    {`${actor2Name}: ${
-                      media2.character || media2.job || "Unknown role"
-                    }`}
-                  </Text>
-                </>
+              {/* Show role information for all selected cast members */}
+              {selectedCastMembers.length > 0 ? (
+                selectedCastMembers.map((castMember, memberIndex) => {
+                  // Get this person's specific role information from the enhanced media item
+                  const castMemberRoles = media1.castMemberRoles || {};
+                  const personRole = castMemberRoles[castMember.id];
+
+                  if (personRole) {
+                    // Determine the role info to display
+                    let roleInfo = "";
+                    if (personRole.character) {
+                      roleInfo = `as ${personRole.character}`;
+                    } else if (personRole.job) {
+                      roleInfo = `${personRole.job}`;
+                      if (
+                        personRole.department &&
+                        personRole.department !== personRole.job
+                      ) {
+                        roleInfo += ` (${personRole.department})`;
+                      }
+                    } else {
+                      roleInfo = "Unknown role";
+                    }
+
+                    return (
+                      <Text
+                        key={`${castMember.id}-${memberIndex}`}
+                        style={styles(colors).character}
+                      >
+                        {`${castMember.name}: ${roleInfo}`}
+                      </Text>
+                    );
+                  }
+
+                  return null; // Don't render if no role info found
+                })
               ) : (
                 <>
-                  {/* Show character information if it exists */}
+                  {/* Fallback for when no cast members are selected */}
                   {media1.character && (
                     <Text style={styles(colors).character}>
                       {`as: ${media1.character}`}
                     </Text>
                   )}
-                  {/* Show job information if it exists and no character */}
                   {media1.job && !media1.character && (
                     <Text style={styles(colors).character}>
                       {`job: ${media1.job}`}
                     </Text>
                   )}
-                  {/* Show department if available */}
                   {media1.department && (
                     <Text style={styles(colors).department}>
                       {media1.department}
@@ -347,35 +361,28 @@ const MediaDisplay = ({
         </TouchableOpacity>
       );
     },
-    [
-      colors,
-      actor1Id,
-      actor2Id,
-      actor1Name,
-      actor2Name,
-      getYear,
-      handleMediaPress,
-      onFilmSelect,
-    ]
+    [colors, selectedCastMembers, getYear, handleMediaPress, onFilmSelect]
   );
 
-  // Title text based on actor selection state
+  // Update title text to work with variable number of cast members
   const getTitleText = () => {
-    if (!actor1Id && !actor2Id) {
-      return "Select actors to see their filmography";
-    } else if (actor1Id && !actor2Id) {
-      return `Filmography of ${actor1Name}`;
-    } else if (!actor1Id && actor2Id) {
-      return `Filmography of ${actor2Name}`;
-    } else if (actor1Id && actor2Id) {
-      return `Projects with both ${actor1Name} and ${actor2Name}`;
+    const castCount = selectedCastMembers.length;
+
+    if (castCount === 0) {
+      return "Select people to see their filmography";
+    } else if (castCount === 1) {
+      return `Filmography of ${selectedCastMembers[0].name}`;
+    } else if (castCount === 2) {
+      return `Projects with ${selectedCastMembers[0].name} and ${selectedCastMembers[1].name}`;
     } else {
-      return "Media Display";
+      return `Projects with ${selectedCastMembers[0].name} and ${
+        castCount - 1
+      } others`;
     }
   };
 
-  // Determine if we should show the clear button (when at least one actor is selected)
-  const shouldShowClearButton = actor1Id || actor2Id;
+  // Update clear button logic
+  const shouldShowClearButton = selectedCastMembers.length > 0;
 
   // Determine if we should show the filter controls
   const shouldShowFilters = commonMedia.length > 0;
@@ -463,14 +470,14 @@ const MediaDisplay = ({
         <View style={styles(colors).mediaContainer}>
           {filteredMedia.length === 0 && !mediaError && !mediaLoading ? (
             <Text style={styles(colors).emptyText}>
-              {!actor1Id && !actor2Id
-                ? "Select actors above to see their work"
-                : actor1Id && actor2Id
+              {selectedCastMembers.length === 0
+                ? "Select people above to see their work"
+                : selectedCastMembers.length > 1
                 ? filterMode !== "all"
                   ? `No ${
                       filterMode === "movies" ? "movies" : "TV shows"
-                    } found with both actors`
-                  : "No shared projects found with both actors"
+                    } found with all selected people`
+                  : "No shared projects found with all selected people"
                 : filterMode !== "all"
                 ? `No ${
                     filterMode === "movies" ? "movies" : "TV shows"

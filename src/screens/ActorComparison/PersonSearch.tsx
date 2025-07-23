@@ -25,8 +25,8 @@ const debounce = (func: Function, delay: number) => {
 };
 
 interface PersonSearchProps {
-  onSelectActor: (actor: Person | null) => void; // Updated to accept null
-  selectedActor?: Person | null;
+  onSelectActor: (actor: Person | null) => void; // Allow null for clearing selection
+  selectedActor?: Person | null; // Keep for backward compatibility but ignore
   defaultQuery?: string;
   performInitialSearch?: boolean;
   defaultActorId?: number;
@@ -40,7 +40,7 @@ const PersonSearch = ({
   defaultActorId,
 }: PersonSearchProps) => {
   const { colors } = useTheme();
-  const { searchPeople } = useFilmContext();
+  const { searchPeople, selectedCastMembers } = useFilmContext();
 
   const [searchQuery, setSearchQuery] = useState(defaultQuery);
   const [actors, setActors] = useState<Person[]>([]);
@@ -203,83 +203,88 @@ const PersonSearch = ({
     }
   };
 
-  const renderActor = ({ item }: { item: Person }) => (
-    <TouchableOpacity
-      style={[
-        styles(colors).actorItem,
-        selectedActor?.id === item.id ? styles(colors).selectedActor : null,
-      ]}
-      onPress={() => {
-        onSelectActor(item);
-        setIsModalVisible(false);
-      }}
-      activeOpacity={0.7}
-    >
-      {item.profile_path ? (
-        <Image
-          source={{
-            uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
-          }}
-          style={styles(colors).actorImage}
-        />
-      ) : (
-        <View style={styles(colors).noImagePlaceholder}>
-          <Ionicons name="person" size={30} color={colors.textSecondary} />
-        </View>
-      )}
-      <View style={styles(colors).actorDetails}>
-        <Text style={styles(colors).actorName}>{item.name || "Unknown"}</Text>
-        {item.known_for_department && (
-          <Text style={styles(colors).actorDepartment}>
-            {item.known_for_department}
-          </Text>
-        )}
-        {item.known_for && item.known_for.length > 0 && (
-          <Text
-            style={styles(colors).knownFor}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            Known for:{" "}
-            {item.known_for
-              .map((work) => work.title || work.name)
-              .filter(Boolean)
-              .join(", ")}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-
   const getHeaderContent = () => {
-    if (selectedActor) {
-      console.log(
-        `https://image.tmdb.org/t/p/w185${selectedActor.profile_path}`
-      );
-      return (
-        <View style={styles(colors).collapsedHeader}>
-          {selectedActor.profile_path ? (
-            <Image
-              source={{
-                uri: `https://image.tmdb.org/t/p/w185${selectedActor.profile_path}`,
-              }}
-              style={styles(colors).headerPhoto}
-            />
-          ) : (
-            <View style={styles(colors).headerNoImage}>
-              <Ionicons name="person" size={14} color={colors.textSecondary} />
-            </View>
-          )}
-          <View style={styles(colors).headerTextContainer}>
-            <Text style={styles(colors).headerActorName} numberOfLines={1}>
-              {selectedActor.name}
-            </Text>
-          </View>
-        </View>
-      );
+    const count = selectedCastMembers.length;
+
+    if (count === 0) {
+      return <Text style={styles(colors).sectionTitle}>Add people</Text>;
+    } else if (count === 1) {
+      return <Text style={styles(colors).sectionTitle}>1 person selected</Text>;
     } else {
-      return <Text style={styles(colors).sectionTitle}>Select an actor</Text>;
+      return (
+        <Text style={styles(colors).sectionTitle}>{count} people selected</Text>
+      );
     }
+  };
+
+  const renderActor = ({ item }: { item: Person }) => {
+    // Check if this person is already selected
+    const isAlreadySelected = selectedCastMembers.some(
+      (person) => person.id === item.id
+    );
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles(colors).actorItem,
+          isAlreadySelected ? styles(colors).alreadySelectedActor : null,
+        ]}
+        onPress={() => {
+          if (!isAlreadySelected) {
+            onSelectActor(item);
+            setIsModalVisible(false);
+          }
+        }}
+        disabled={isAlreadySelected}
+        activeOpacity={isAlreadySelected ? 1 : 0.7}
+      >
+        {item.profile_path ? (
+          <Image
+            source={{
+              uri: `https://image.tmdb.org/t/p/w185${item.profile_path}`,
+            }}
+            style={styles(colors).actorImage}
+          />
+        ) : (
+          <View style={styles(colors).noImagePlaceholder}>
+            <Ionicons name="person" size={30} color={colors.textSecondary} />
+          </View>
+        )}
+        <View style={styles(colors).actorDetails}>
+          <Text style={styles(colors).actorName}>{item.name || "Unknown"}</Text>
+          {item.known_for_department && (
+            <Text style={styles(colors).actorDepartment}>
+              {item.known_for_department}
+            </Text>
+          )}
+          {item.known_for && item.known_for.length > 0 && (
+            <Text
+              style={styles(colors).knownFor}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Known for:{" "}
+              {item.known_for
+                .map((work) => work.title || work.name)
+                .filter(Boolean)
+                .join(", ")}
+            </Text>
+          )}
+          {isAlreadySelected && (
+            <Text style={styles(colors).selectedIndicator}>Already added</Text>
+          )}
+        </View>
+        {isAlreadySelected && (
+          <View style={styles(colors).checkmark}>
+            <Ionicons
+              name="checkmark-circle"
+              size={20}
+              color={colors.primary}
+            />
+          </View>
+        )}
+      </TouchableOpacity>
+    );
   };
 
   return (
@@ -294,21 +299,12 @@ const PersonSearch = ({
           {getHeaderContent()}
 
           <View style={styles(colors).actionButtons}>
-            {selectedActor && (
-              <TouchableOpacity
-                style={styles(colors).clearButton}
-                onPress={handleClearActor}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="close-circle"
-                  size={20}
-                  color={colors.primary}
-                />
-              </TouchableOpacity>
-            )}
             <View style={styles(colors).collapseButton}>
-              <Ionicons name="search" size={24} color={colors.primary} />
+              <Ionicons
+                name="add-circle-outline"
+                size={24}
+                color={colors.primary}
+              />
             </View>
           </View>
         </TouchableOpacity>
@@ -324,9 +320,7 @@ const PersonSearch = ({
         <View style={styles(colors).modalOverlay}>
           <View style={styles(colors).modalContent}>
             <View style={styles(colors).modalHeader}>
-              <Text style={styles(colors).modalTitle}>
-                {selectedActor ? "Change actor" : "Search actors"}
-              </Text>
+              <Text style={styles(colors).modalTitle}>Add Person</Text>
               <TouchableOpacity
                 style={styles(colors).closeButton}
                 onPress={() => setIsModalVisible(false)}
@@ -343,7 +337,7 @@ const PersonSearch = ({
                     placeholder="Enter actor name"
                     placeholderTextColor={colors.textSecondary}
                     value={searchQuery}
-                    onChangeText={handleInputChange} // Use new handler for autocomplete
+                    onChangeText={handleInputChange}
                     autoFocus={true}
                   />
                   {searchQuery.length > 0 && (
@@ -366,6 +360,16 @@ const PersonSearch = ({
                   <Text style={styles(colors).buttonText}>Search</Text>
                 </TouchableOpacity>
               </View>
+
+              {/* Show selected count in modal */}
+              {selectedCastMembers.length > 0 && (
+                <View style={styles(colors).selectedCountContainer}>
+                  <Text style={styles(colors).selectedCountText}>
+                    {selectedCastMembers.length} person
+                    {selectedCastMembers.length !== 1 ? "s" : ""} selected
+                  </Text>
+                </View>
+              )}
 
               {/* Autocomplete suggestions */}
               {isAutocompleting && searchQuery.length >= 2 && (
@@ -415,7 +419,7 @@ const PersonSearch = ({
                       ListEmptyComponent={
                         !error && !loading ? (
                           <Text style={styles(colors).emptyText}>
-                            Search for an actor to see results
+                            Search for an actor to add to your comparison
                           </Text>
                         ) : null
                       }
@@ -679,6 +683,33 @@ const styles = (colors: any) =>
       padding: 12,
       color: colors.error,
       textAlign: "center",
+    },
+    // Add new styles for already selected actors
+    alreadySelectedActor: {
+      backgroundColor: colors.surface,
+      opacity: 0.6,
+    },
+    selectedIndicator: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: "500",
+      marginTop: 4,
+    },
+    checkmark: {
+      marginLeft: 8,
+      justifyContent: "center",
+    },
+    selectedCountContainer: {
+      backgroundColor: colors.surface,
+      padding: 8,
+      borderRadius: 6,
+      marginBottom: 8,
+      alignItems: "center",
+    },
+    selectedCountText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: "500",
     },
   });
 

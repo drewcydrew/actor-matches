@@ -40,8 +40,10 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
   } = useSavedSearches();
 
   const {
-    setSelectedCastMember1,
-    setSelectedCastMember2,
+    // Use array-based cast member selection instead of individual items
+    selectedCastMembers,
+    clearCastMembers,
+    addCastMember,
     // Use array-based media selection instead of individual items
     clearMediaItems,
     addMediaItem,
@@ -114,8 +116,14 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
       }
     } else {
       // Load person comparison - only update people, don't touch media
-      setSelectedCastMember1(search.person1 || null);
-      setSelectedCastMember2(search.person2 || null);
+      clearCastMembers();
+
+      // Use array format only
+      if (search.people && search.people.length > 0) {
+        search.people.forEach((person) => {
+          addCastMember(person);
+        });
+      }
       // Don't clear selected media - let them remain as they are
 
       // Navigate to compare by person tab
@@ -141,8 +149,14 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
           });
         }
       } else if (search.type === "person") {
-        setSelectedCastMember1(search.person1 || null);
-        setSelectedCastMember2(search.person2 || null);
+        clearCastMembers();
+
+        // Use array format only
+        if (search.people && search.people.length > 0) {
+          search.people.forEach((person) => {
+            addCastMember(person);
+          });
+        }
       }
 
       // Show success message
@@ -312,7 +326,7 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
     return "Empty media comparison";
   };
 
-  // Get search preview text - simplified to only use array
+  // Get search preview text - updated to use array format only
   const getSearchPreview = (search: SavedSearch) => {
     if (search.type === "media") {
       if (search.mediaItems && search.mediaItems.length > 0) {
@@ -328,10 +342,19 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
       }
       return "Empty media comparison";
     } else {
-      const people = [];
-      if (search.person1) people.push(search.person1.name);
-      if (search.person2) people.push(search.person2.name);
-      return people.join(" & ") || "Empty person comparison";
+      // Use array format only
+      if (search.people && search.people.length > 0) {
+        const peopleNames = search.people.map((person) => person.name);
+
+        if (peopleNames.length === 1) {
+          return peopleNames[0];
+        } else if (peopleNames.length === 2) {
+          return `${peopleNames[0]} & ${peopleNames[1]}`;
+        } else {
+          return `${peopleNames[0]} + ${peopleNames.length - 1} more`;
+        }
+      }
+      return "Empty person comparison";
     }
   };
 

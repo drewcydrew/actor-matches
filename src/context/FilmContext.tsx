@@ -7,16 +7,23 @@ import React, {
   useCallback,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Film, TVShow, MediaItem, Person } from "../types/types";
+import {
+  Film,
+  TVShow,
+  MediaItem,
+  Person,
+  EnhancedMediaItem,
+} from "../types/types";
 import tmdbApi from "../api/tmdbApi";
 
 // Storage keys for AsyncStorage
 const STORAGE_KEYS = {
   SELECTED_MEDIA_ITEMS: "actor-matches:selectedMediaItems",
+  SELECTED_CAST_MEMBERS: "actor-matches:selectedCastMembers", // Add this new key
   MEDIA_ITEM_1: "actor-matches:selectedMediaItem1", // Keep for migration only
   MEDIA_ITEM_2: "actor-matches:selectedMediaItem2", // Keep for migration only
-  CAST_MEMBER_1: "actor-matches:selectedCastMember1",
-  CAST_MEMBER_2: "actor-matches:selectedCastMember2",
+  CAST_MEMBER_1: "actor-matches:selectedCastMember1", // Keep for migration only
+  CAST_MEMBER_2: "actor-matches:selectedCastMember2", // Keep for migration only
 };
 
 // Convert external types to our unified MediaItem
@@ -110,11 +117,14 @@ interface FilmContextType {
   updateMediaItem: (index: number, media: MediaItem) => void;
   getMediaItemAtIndex: (index: number) => MediaItem | null;
 
-  // Cast member selection
-  selectedCastMember1: Person | null;
-  selectedCastMember2: Person | null;
-  setSelectedCastMember1: (actor: Person | null) => void;
-  setSelectedCastMember2: (actor: Person | null) => void;
+  // Array-based cast member selection (only approach now)
+  selectedCastMembers: Person[];
+  addCastMember: (person: Person) => void;
+  removeCastMember: (personId: number) => void;
+  clearCastMembers: () => void;
+  reorderCastMembers: (fromIndex: number, toIndex: number) => void;
+  updateCastMember: (index: number, person: Person) => void;
+  getCastMemberAtIndex: (index: number) => Person | null;
 
   // Cast data
   castMembers: [Person, Person][];
@@ -123,7 +133,7 @@ interface FilmContextType {
   displayMode: "single" | "comparison";
 
   // Filmography data for actors
-  commonMedia: [MediaItem, MediaItem][];
+  commonMedia: [EnhancedMediaItem, EnhancedMediaItem][];
   mediaLoading: boolean;
   mediaError: string;
 
@@ -169,10 +179,13 @@ const FilmContext = createContext<FilmContextType>({
   reorderMediaItems: () => {},
   updateMediaItem: () => {},
   getMediaItemAtIndex: () => null,
-  selectedCastMember1: null,
-  selectedCastMember2: null,
-  setSelectedCastMember1: () => {},
-  setSelectedCastMember2: () => {},
+  selectedCastMembers: [],
+  addCastMember: () => {},
+  removeCastMember: () => {},
+  clearCastMembers: () => {},
+  reorderCastMembers: () => {},
+  updateCastMember: () => {},
+  getCastMemberAtIndex: () => null,
   castMembers: [],
   castLoading: false,
   castError: "",
@@ -202,10 +215,9 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   const [selectedMediaItems, setSelectedMediaItems] = useState<MediaItem[]>([]);
 
   // Actor selection state - initialize with null and load from storage
-  const [selectedCastMember1, setSelectedCastMember1Internal] =
-    useState<Person | null>(null);
-  const [selectedCastMember2, setSelectedCastMember2Internal] =
-    useState<Person | null>(null);
+  const [selectedCastMembers, setSelectedCastMembersInternal] = useState<
+    Person[]
+  >([]);
 
   // Loading state for initial data
   const [isLoading, setIsLoading] = useState(true);
@@ -219,7 +231,9 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
   );
 
   // Media data state for actors
-  const [commonMedia, setCommonMedia] = useState<[MediaItem, MediaItem][]>([]);
+  const [commonMedia, setCommonMedia] = useState<
+    [EnhancedMediaItem, EnhancedMediaItem][]
+  >([]);
   const [mediaLoading, setMediaLoading] = useState<boolean>(false);
   const [mediaError, setMediaError] = useState<string>("");
 
@@ -240,7 +254,12 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           STORAGE_KEYS.MEDIA_ITEM_2
         );
 
-        // Load cast members
+        // Load cast members array first (primary method)
+        const storedCastMembersString = await AsyncStorage.getItem(
+          STORAGE_KEYS.SELECTED_CAST_MEMBERS
+        );
+
+        // Load legacy individual cast members for migration only
         const storedCastMember1String = await AsyncStorage.getItem(
           STORAGE_KEYS.CAST_MEMBER_1
         );
@@ -253,6 +272,7 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
           storedMediaItemsString === null &&
           storedMediaItem1String === null &&
           storedMediaItem2String === null &&
+          storedCastMembersString === null &&
           storedCastMember1String === null &&
           storedCastMember2String === null;
 
@@ -299,29 +319,78 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
         // Set the media items array
         setSelectedMediaItems(mediaItemsArray);
 
-        // Parse stored cast members - only use defaults on first load
-        const storedCastMember1 = storedCastMember1String
-          ? JSON.parse(storedCastMember1String)
-          : isFirstLoad
-          ? DEFAULT_ACTOR_1
-          : null;
+        // Handle cast members array loading
+        let castMembersArray: Person[] = [];
 
-        const storedCastMember2 = storedCastMember2String
-          ? JSON.parse(storedCastMember2String)
-          : isFirstLoad
-          ? DEFAULT_ACTOR_2
-          : null;
+        if (storedCastMembersString) {
+          // Primary method: Load from array storage
+          try {
+            const parsedCastMembers = JSON.parse(storedCastMembersString);
+            // Ensure it's an array and validate each item
+            if (Array.isArray(parsedCastMembers)) {
+              castMembersArray = parsedCastMembers.filter(
+                (member) =>
+                  member &&
+                  typeof member === "object" &&
+                  typeof member.id === "number" &&
+                  typeof member.name === "string"
+              );
+            }
+          } catch (parseError) {
+            console.error(
+              "Error parsing stored cast members array:",
+              parseError
+            );
+            castMembersArray = [];
+          }
+        } else if (storedCastMember1String || storedCastMember2String) {
+          // Migration: Load from legacy individual storage and convert to array
+          try {
+            const legacyCast1 = storedCastMember1String
+              ? JSON.parse(storedCastMember1String)
+              : null;
+            const legacyCast2 = storedCastMember2String
+              ? JSON.parse(storedCastMember2String)
+              : null;
 
-        // Update cast member state
-        setSelectedCastMember1Internal(storedCastMember1);
-        setSelectedCastMember2Internal(storedCastMember2);
+            if (legacyCast1 && legacyCast1.id && legacyCast1.name) {
+              // Ensure roles array exists for legacy data
+              legacyCast1.roles = legacyCast1.roles || ["cast"];
+              castMembersArray.push(legacyCast1);
+            }
+            if (legacyCast2 && legacyCast2.id && legacyCast2.name) {
+              // Ensure roles array exists for legacy data
+              legacyCast2.roles = legacyCast2.roles || ["cast"];
+              castMembersArray.push(legacyCast2);
+            }
+
+            // Save the migrated array and clean up legacy storage
+            if (castMembersArray.length > 0) {
+              await AsyncStorage.setItem(
+                STORAGE_KEYS.SELECTED_CAST_MEMBERS,
+                JSON.stringify(castMembersArray)
+              );
+              // Clean up legacy storage
+              await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_1);
+              await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_2);
+            }
+          } catch (parseError) {
+            console.error("Error parsing legacy cast members:", parseError);
+            castMembersArray = [];
+          }
+        } else if (isFirstLoad) {
+          // First time loading: Use defaults
+          castMembersArray = [DEFAULT_ACTOR_1, DEFAULT_ACTOR_2];
+        }
+
+        // Set the cast members array
+        setSelectedCastMembersInternal(castMembersArray);
       } catch (error) {
         console.error("Error loading stored selections:", error);
         // Fall back to defaults in case of error
         const defaultArray = [DEFAULT_MEDIA_1, DEFAULT_MEDIA_2];
         setSelectedMediaItems(defaultArray);
-        setSelectedCastMember1Internal(DEFAULT_ACTOR_1);
-        setSelectedCastMember2Internal(DEFAULT_ACTOR_2);
+        setSelectedCastMembersInternal([DEFAULT_ACTOR_1, DEFAULT_ACTOR_2]);
       } finally {
         setIsLoading(false);
       }
@@ -342,20 +411,51 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     }
   };
 
-  const setSelectedCastMember1 = async (actor: Person | null) => {
-    setSelectedCastMember1Internal(actor);
+  // Helper function to save cast members array to storage - Updated to use array storage
+  const saveCastMembersToStorage = async (castMembers: Person[]) => {
     try {
-      if (actor) {
+      // Validate the data before saving
+      const validCastMembers = castMembers.filter(
+        (member) =>
+          member &&
+          typeof member === "object" &&
+          typeof member.id === "number" &&
+          typeof member.name === "string"
+      );
+
+      // Primary method: Save the full array
+      await AsyncStorage.setItem(
+        STORAGE_KEYS.SELECTED_CAST_MEMBERS,
+        JSON.stringify(validCastMembers)
+      );
+
+      // For backward compatibility during migration, also store the first two cast members individually
+      if (validCastMembers.length > 0) {
         await AsyncStorage.setItem(
           STORAGE_KEYS.CAST_MEMBER_1,
-          JSON.stringify(actor)
+          JSON.stringify(validCastMembers[0])
         );
       } else {
         await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_1);
       }
+
+      if (validCastMembers.length > 1) {
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.CAST_MEMBER_2,
+          JSON.stringify(validCastMembers[1])
+        );
+      } else {
+        await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_2);
+      }
     } catch (error) {
-      console.error("Error storing selectedCastMember1:", error);
+      console.error("Error storing selectedCastMembers:", error);
     }
+  };
+
+  // Set selected cast members
+  const setSelectedCastMembers = async (actors: Person[]) => {
+    setSelectedCastMembersInternal(actors);
+    await saveCastMembersToStorage(actors);
   };
 
   // Updated getCast function with proper type handling
@@ -561,21 +661,6 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
       };
     }
   };
-  const setSelectedCastMember2 = async (actor: Person | null) => {
-    setSelectedCastMember2Internal(actor);
-    try {
-      if (actor) {
-        await AsyncStorage.setItem(
-          STORAGE_KEYS.CAST_MEMBER_2,
-          JSON.stringify(actor)
-        );
-      } else {
-        await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_2);
-      }
-    } catch (error) {
-      console.error("Error storing selectedCastMember2:", error);
-    }
-  };
 
   // Fetch cast data whenever selected media changes - only after loading complete
   useEffect(() => {
@@ -586,15 +671,11 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
   // Fetch actor filmography whenever selected actors change - only after loading complete
   useEffect(() => {
-    if (!isLoading && (selectedCastMember1 || selectedCastMember2)) {
-      getActorFilmography(
-        selectedCastMember1?.id,
-        selectedCastMember2?.id,
-        selectedCastMember1?.name,
-        selectedCastMember2?.name
-      );
+    if (!isLoading && selectedCastMembers.length > 0) {
+      const [actor1, actor2] = selectedCastMembers;
+      getActorFilmography(actor1?.id, actor2?.id, actor1?.name, actor2?.name);
     }
-  }, [selectedCastMember1?.id, selectedCastMember2?.id, isLoading]); // Only depend on IDs
+  }, [selectedCastMembers, isLoading]); // Only depend on IDs
 
   const getCredits = async (
     actorId: number
@@ -1050,12 +1131,11 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
 
         if (creditResults.length > 0) {
           // For single actor case, create pairs of the same MediaItem
-          const mediaPairs: [MediaItem, MediaItem][] = creditResults.map(
-            (mediaItem) => [
-              mediaItem,
-              { ...mediaItem }, // Create a copy for the second position
-            ]
-          );
+          const mediaPairs: [EnhancedMediaItem, EnhancedMediaItem][] =
+            creditResults.map((mediaItem) => [
+              mediaItem as EnhancedMediaItem,
+              { ...mediaItem } as EnhancedMediaItem, // Create a copy for the second position
+            ]);
 
           // Sort by popularity
           mediaPairs.sort((a, b) => b[0].popularity - a[0].popularity);
@@ -1073,71 +1153,103 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
       return;
     }
 
-    // Case 3: Both actors selected - find common media
-    if (actor1Id && actor2Id) {
+    // Case 3: Multiple actors selected - find common media with individual role data
+    if (selectedCastMembers.length >= 2) {
       setMediaLoading(true);
 
       try {
-        // Get credits for both actors using our getCredits function
-        const [actor1Response, actor2Response] = await Promise.all([
-          getCredits(actor1Id),
-          getCredits(actor2Id),
-        ]);
+        // Get credits for all selected cast members
+        const creditsResponses = await Promise.all(
+          selectedCastMembers.map((castMember) => getCredits(castMember.id))
+        );
 
-        if (actor1Response.error) {
-          setMediaError(`Error with first actor: ${actor1Response.error}`);
+        // Check for errors
+        const errorResponse = creditsResponses.find(
+          (response) => response.error
+        );
+        if (errorResponse) {
+          setMediaError(`Error fetching credits: ${errorResponse.error}`);
           return;
         }
 
-        if (actor2Response.error) {
-          setMediaError(`Error with second actor: ${actor2Response.error}`);
+        const allCreditsArrays = creditsResponses.map(
+          (response) => response.results
+        );
+
+        // Check if any credits arrays are empty
+        if (allCreditsArrays.some((credits) => credits.length === 0)) {
+          setMediaError("Credits not available for one or more people");
           return;
         }
 
-        const actor1Media = actor1Response.results;
-        const actor2Media = actor2Response.results;
+        // Find media items that appear in ALL cast members' credits
+        const firstPersonCredits = allCreditsArrays[0];
+        const commonMediaPairs: [EnhancedMediaItem, EnhancedMediaItem][] = [];
 
-        // Create a map for quick lookup of actor2's media by ID and type
-        const actor2MediaMap = new Map<string, MediaItem>();
-        actor2Media.forEach((item) => {
-          // Use both ID and role type to allow for different roles in same media
-          const key = `${item.id}-${item.media_type}-${item.job || "cast"}`;
-          actor2MediaMap.set(key, item);
-        });
-
-        // Find matches between the two actors
-        const matchingPairs: [MediaItem, MediaItem][] = [];
-
-        actor1Media.forEach((item1) => {
-          // Generate the same key format for lookup
-          const key = `${item1.id}-${item1.media_type}-${item1.job || "cast"}`;
-
-          // Check for exact role match first
-          if (actor2MediaMap.has(key)) {
-            const item2 = actor2MediaMap.get(key)!;
-            matchingPairs.push([item1, item2]);
-          } else {
-            // Also check for any match with the same media ID
-            // This catches cases where actors had different roles in the same project
-            const alternateKeys = Array.from(actor2MediaMap.keys()).filter(
-              (k) => k.startsWith(`${item1.id}-${item1.media_type}`)
+        firstPersonCredits.forEach((mediaItem1) => {
+          // Check if this media item appears in ALL other cast members' credits
+          const appearsInAll = allCreditsArrays
+            .slice(1)
+            .every((otherCredits) =>
+              otherCredits.some(
+                (otherMedia) =>
+                  otherMedia.id === mediaItem1.id &&
+                  otherMedia.media_type === mediaItem1.media_type
+              )
             );
 
-            if (alternateKeys.length > 0) {
-              const item2 = actor2MediaMap.get(alternateKeys[0])!;
-              matchingPairs.push([item1, item2]);
-            }
+          if (appearsInAll) {
+            // Create enhanced media items with role information for each person
+            const enhancedMedia1: EnhancedMediaItem = { ...mediaItem1 };
+            const enhancedMedia2: EnhancedMediaItem = { ...mediaItem1 };
+
+            // Collect role information for each cast member in this media item
+            const roleInfoByPerson: {
+              [personId: number]: {
+                character?: string;
+                job?: string;
+                department?: string;
+              };
+            } = {};
+
+            allCreditsArrays.forEach((creditsArray, personIndex) => {
+              const personId = selectedCastMembers[personIndex].id;
+              const personMediaItem = creditsArray.find(
+                (media) =>
+                  media.id === mediaItem1.id &&
+                  media.media_type === mediaItem1.media_type
+              );
+
+              if (personMediaItem) {
+                roleInfoByPerson[personId] = {
+                  character: personMediaItem.character,
+                  job: personMediaItem.job,
+                  department: personMediaItem.department,
+                };
+              }
+            });
+
+            // Store the role information in the enhanced media items
+            enhancedMedia1.castMemberRoles = roleInfoByPerson;
+            enhancedMedia2.castMemberRoles = roleInfoByPerson;
+
+            commonMediaPairs.push([enhancedMedia1, enhancedMedia2]);
           }
         });
 
-        if (matchingPairs.length > 0) {
+        if (commonMediaPairs.length > 0) {
           // Sort by popularity of first media item
           setCommonMedia(
-            matchingPairs.sort((a, b) => b[0].popularity - a[0].popularity)
+            commonMediaPairs.sort((a, b) => b[0].popularity - a[0].popularity)
           );
         } else {
+          const castMemberNames = selectedCastMembers
+            .map((member) => member.name)
+            .join(", ");
           setMediaError(
-            `${actor1Name} and ${actor2Name} haven't worked together in any movies or TV shows`
+            selectedCastMembers.length === 2
+              ? `${selectedCastMembers[0].name} and ${selectedCastMembers[1].name} haven't worked together in any movies or TV shows`
+              : `No shared projects found among: ${castMemberNames}`
           );
         }
       } catch (err) {
@@ -1344,6 +1456,114 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     [selectedMediaItems]
   );
 
+  // Array management functions for cast members
+  const addCastMember = useCallback((person: Person) => {
+    setSelectedCastMembersInternal((prev) => {
+      // Check if person already exists in array
+      const existingIndex = prev.findIndex((p) => p.id === person.id);
+
+      let newArray: Person[];
+
+      if (existingIndex !== -1) {
+        // Replace existing person
+        newArray = [...prev];
+        newArray[existingIndex] = {
+          ...person,
+          roles: person.roles || ["cast"], // Ensure roles array exists
+        };
+      } else {
+        // Add new person
+        newArray = [
+          ...prev,
+          {
+            ...person,
+            roles: person.roles || ["cast"], // Ensure roles array exists
+          },
+        ];
+      }
+
+      // Save to storage
+      saveCastMembersToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const removeCastMember = useCallback((personId: number) => {
+    setSelectedCastMembersInternal((prev) => {
+      const newArray = prev.filter((person) => person.id !== personId);
+
+      // Save to storage
+      saveCastMembersToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const clearCastMembers = useCallback(async () => {
+    setSelectedCastMembersInternal([]);
+
+    // Clear both array and legacy storage
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEYS.SELECTED_CAST_MEMBERS);
+      await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_1);
+      await AsyncStorage.removeItem(STORAGE_KEYS.CAST_MEMBER_2);
+    } catch (error) {
+      console.error("Error clearing cast members from storage:", error);
+    }
+  }, []);
+
+  const reorderCastMembers = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      setSelectedCastMembersInternal((prev) => {
+        if (
+          fromIndex < 0 ||
+          fromIndex >= prev.length ||
+          toIndex < 0 ||
+          toIndex >= prev.length
+        ) {
+          return prev; // Invalid indices
+        }
+
+        const newArray = [...prev];
+        const [movedItem] = newArray.splice(fromIndex, 1);
+        newArray.splice(toIndex, 0, movedItem);
+
+        // Save to storage
+        saveCastMembersToStorage(newArray);
+
+        return newArray;
+      });
+    },
+    []
+  );
+
+  const updateCastMember = useCallback((index: number, person: Person) => {
+    setSelectedCastMembersInternal((prev) => {
+      if (index < 0 || index >= prev.length) {
+        return prev; // Invalid index
+      }
+
+      const newArray = [...prev];
+      newArray[index] = {
+        ...person,
+        roles: person.roles || ["cast"], // Ensure roles array exists
+      };
+
+      // Save to storage
+      saveCastMembersToStorage(newArray);
+
+      return newArray;
+    });
+  }, []);
+
+  const getCastMemberAtIndex = useCallback(
+    (index: number): Person | null => {
+      return selectedCastMembers[index] || null;
+    },
+    [selectedCastMembers]
+  );
+
   // Value object that will be passed to consumers
   const value: FilmContextType = {
     // Array-based media selection (primary)
@@ -1355,11 +1575,16 @@ export const FilmProvider = ({ children }: FilmProviderProps) => {
     updateMediaItem,
     getMediaItemAtIndex,
 
-    // Cast member selection
-    selectedCastMember1,
-    selectedCastMember2,
-    setSelectedCastMember1,
-    setSelectedCastMember2,
+    // Array-based cast member selection (only approach now)
+    selectedCastMembers,
+    addCastMember,
+    removeCastMember,
+    clearCastMembers,
+    reorderCastMembers,
+    updateCastMember,
+    getCastMemberAtIndex,
+
+    // Remove legacy properties from value object
     castMembers,
     castLoading,
     castError,

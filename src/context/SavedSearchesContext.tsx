@@ -22,9 +22,8 @@ export interface SavedSearch {
   // Media comparison data - array-based only
   mediaItems?: MediaItem[];
 
-  // Person comparison data
-  person1?: Person | null;
-  person2?: Person | null;
+  // Person comparison data - array-based only
+  people?: Person[];
 
   // Optional metadata
   description?: string;
@@ -69,8 +68,7 @@ interface SavedSearchesContextType {
   ) => Promise<string>;
   saveCurrentPersonComparison: (
     name: string,
-    person1?: Person | null,
-    person2?: Person | null,
+    people: Person[],
     description?: string
   ) => Promise<string>;
 }
@@ -150,7 +148,7 @@ export const SavedSearchesProvider = ({
         const validSearches = parsedSearches
           .filter(isValidSavedSearch)
           .map((search: any) => {
-            // Migration: convert legacy format to array format
+            // Migration: convert legacy media format to array format
             if (
               search.type === "media" &&
               !search.mediaItems &&
@@ -173,7 +171,30 @@ export const SavedSearchesProvider = ({
               } as SavedSearch;
             }
 
-            // For searches that already have mediaItems, ensure legacy properties are removed
+            // Migration: convert legacy person format to array format
+            if (
+              search.type === "person" &&
+              !search.people &&
+              (search.person1 || search.person2)
+            ) {
+              const migratedPeople: Person[] = [];
+              if (search.person1) migratedPeople.push(search.person1);
+              if (search.person2) migratedPeople.push(search.person2);
+
+              // Return migrated search without legacy properties
+              return {
+                id: search.id,
+                name: search.name,
+                type: search.type,
+                dateCreated: search.dateCreated,
+                dateModified: search.dateModified,
+                people: migratedPeople,
+                description: search.description,
+                tags: search.tags,
+              } as SavedSearch;
+            }
+
+            // For searches that already have new format, ensure legacy properties are removed
             if (search.type === "media") {
               return {
                 id: search.id,
@@ -182,6 +203,19 @@ export const SavedSearchesProvider = ({
                 dateCreated: search.dateCreated,
                 dateModified: search.dateModified,
                 mediaItems: search.mediaItems || [],
+                description: search.description,
+                tags: search.tags,
+              } as SavedSearch;
+            }
+
+            if (search.type === "person") {
+              return {
+                id: search.id,
+                name: search.name,
+                type: search.type,
+                dateCreated: search.dateCreated,
+                dateModified: search.dateModified,
+                people: search.people || [],
                 description: search.description,
                 tags: search.tags,
               } as SavedSearch;
@@ -409,18 +443,16 @@ export const SavedSearchesProvider = ({
     });
   };
 
-  // Quick save current person comparison
+  // Quick save current person comparison - updated to use array directly
   const saveCurrentPersonComparison = async (
     name: string,
-    person1?: Person | null,
-    person2?: Person | null,
+    people: Person[],
     description?: string
   ): Promise<string> => {
     return await saveSearch({
       name,
       type: "person",
-      person1: person1,
-      person2: person2,
+      people: people,
       description,
     });
   };

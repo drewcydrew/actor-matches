@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { MediaItem } from "../../types/types";
 import { Person } from "../../types/types";
 
-// Update props to remove legacy media selection
+// Update props to use Person type
 interface PersonCreditsModalProps {
   personId: number;
   personName?: string;
@@ -49,8 +49,15 @@ const PersonCreditsModal = ({
   personProfilePath,
 }: PersonCreditsModalProps) => {
   const { colors } = useTheme();
-  const { getCredits, selectedMediaItems, addMediaItem, updateMediaItem } =
-    useFilmContext();
+  const {
+    getCredits,
+    selectedMediaItems,
+    addMediaItem,
+    updateMediaItem,
+    selectedCastMembers,
+    addCastMember,
+    updateCastMember,
+  } = useFilmContext();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -78,6 +85,17 @@ const PersonCreditsModal = ({
       return { isSelected: index !== -1, index };
     },
     [selectedMediaItems]
+  );
+
+  // Check if this person is already in the array
+  const isPersonAlreadySelected = useCallback(
+    (personId: number): { isSelected: boolean; index: number } => {
+      const index = selectedCastMembers.findIndex(
+        (person) => person.id === personId
+      );
+      return { isSelected: index !== -1, index };
+    },
+    [selectedCastMembers]
   );
 
   useEffect(() => {
@@ -155,23 +173,36 @@ const PersonCreditsModal = ({
     setShowItemOptions(true);
   }, []);
 
-  // Updated function to handle person selection
-  const handleSelectPerson = (option: "person1" | "person2") => {
-    const personData: Person = {
-      id: personId,
-      name: personName,
-      profile_path: personProfilePath,
-      roles: ["cast"], // Add required roles array
-    };
+  // Updated person selection handler
+  const handleSelectPerson = useCallback(
+    (option: "addNew" | "replaceAtIndex", replaceIndex?: number) => {
+      const personData: Person = {
+        id: personId,
+        name: personName,
+        profile_path: personProfilePath,
+        roles: ["cast"], // Add required roles array
+      };
 
-    if (option === "person1" && onSelectPerson1) {
-      onSelectPerson1(personData);
-    } else if (option === "person2" && onSelectPerson2) {
-      onSelectPerson2(personData);
-    }
+      if (option === "addNew") {
+        // Add as new person to array
+        addCastMember(personData);
+      } else if (option === "replaceAtIndex" && replaceIndex !== undefined) {
+        // Replace specific person in array
+        updateCastMember(replaceIndex, personData);
+      }
 
-    setShowPersonOptions(false);
-  };
+      setShowPersonOptions(false);
+      onClose();
+    },
+    [
+      personId,
+      personName,
+      personProfilePath,
+      addCastMember,
+      updateCastMember,
+      onClose,
+    ]
+  );
 
   const openPersonOptions = () => {
     setShowPersonOptions(true);
@@ -532,6 +563,103 @@ const PersonCreditsModal = ({
     );
   };
 
+  // Helper function to get person title
+  const getPersonTitle = useCallback((person: Person): string => {
+    return person.name;
+  }, []);
+
+  // Person selection overlay
+  const renderPersonSelectionOverlay = () => {
+    if (!showPersonOptions) return null;
+
+    const { isSelected, index } = isPersonAlreadySelected(personId);
+
+    return (
+      <View style={styles(colors).optionsOverlay}>
+        <View style={styles(colors).optionsContainer}>
+          <Text style={styles(colors).optionsTitle}>
+            {isSelected
+              ? `"${personName}" is already selected`
+              : `Add "${personName}"`}
+          </Text>
+
+          {isSelected ? (
+            // Person is already selected - show update option
+            <>
+              <Text style={styles(colors).alreadySelectedText}>
+                This person is already in your selection at position {index + 1}
+                .
+              </Text>
+
+              <TouchableOpacity
+                style={styles(colors).optionButton}
+                onPress={() => handleSelectPerson("replaceAtIndex", index)}
+              >
+                <Ionicons
+                  name="refresh-outline"
+                  size={20}
+                  color={colors.text}
+                />
+                <Text style={styles(colors).optionText}>
+                  Update at position {index + 1}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            // Person is not selected - show add/replace options
+            <>
+              {/* Option to add as new */}
+              <TouchableOpacity
+                style={styles(colors).primaryOptionButton}
+                onPress={() => handleSelectPerson("addNew")}
+              >
+                <Ionicons name="person-add-outline" size={20} color="#fff" />
+                <Text style={styles(colors).primaryOptionText}>
+                  Add as new selection
+                </Text>
+              </TouchableOpacity>
+
+              {/* Show existing selections for replacement */}
+              {selectedCastMembers.length > 0 && (
+                <>
+                  <Text style={styles(colors).sectionTitle}>
+                    Or replace existing:
+                  </Text>
+
+                  {selectedCastMembers.map((person, index) => (
+                    <TouchableOpacity
+                      key={`${person.id}-${index}`}
+                      style={styles(colors).optionButton}
+                      onPress={() =>
+                        handleSelectPerson("replaceAtIndex", index)
+                      }
+                    >
+                      <Ionicons
+                        name="swap-horizontal-outline"
+                        size={20}
+                        color={colors.text}
+                      />
+                      <Text style={styles(colors).optionText}>
+                        Replace #{index + 1}: {person.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles(colors).cancelButton}
+            onPress={() => setShowPersonOptions(false)}
+          >
+            <Text style={styles(colors).cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Modal
       visible={isVisible}
@@ -551,7 +679,7 @@ const PersonCreditsModal = ({
                 onPress={openPersonOptions}
               >
                 <Ionicons name="person-add" size={20} color={colors.primary} />
-                <Text style={styles(colors).selectPersonText}>Update</Text>
+                <Text style={styles(colors).selectPersonText}>Add</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -655,69 +783,8 @@ const PersonCreditsModal = ({
           {/* Simplified media selection overlay */}
           {renderMediaSelectionOverlay()}
 
-          {/* Person selection overlay - unchanged */}
-          {showPersonOptions && (
-            <View style={styles(colors).optionsOverlay}>
-              <View style={styles(colors).optionsContainer}>
-                <Text style={styles(colors).optionsTitle}>
-                  Select {personName} as
-                </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles(colors).optionButton,
-                    isSelectedAsPerson1 && styles(colors).selectedOptionButton,
-                  ]}
-                  onPress={() => handleSelectPerson("person1")}
-                  disabled={isSelectedAsPerson1}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles(colors).optionText}>
-                    {isSelectedAsPerson1
-                      ? "Already selected as Person 1"
-                      : "Person 1"}
-                    {selectedPerson1 && !isSelectedAsPerson1
-                      ? ` (replaces ${selectedPerson1.name})`
-                      : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles(colors).optionButton,
-                    isSelectedAsPerson2 && styles(colors).selectedOptionButton,
-                  ]}
-                  onPress={() => handleSelectPerson("person2")}
-                  disabled={isSelectedAsPerson2}
-                >
-                  <Ionicons
-                    name="person-outline"
-                    size={20}
-                    color={colors.text}
-                  />
-                  <Text style={styles(colors).optionText}>
-                    {isSelectedAsPerson2
-                      ? "Already selected as Person 2"
-                      : "Person 2"}
-                    {selectedPerson2 && !isSelectedAsPerson2
-                      ? ` (replaces ${selectedPerson2.name})`
-                      : ""}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles(colors).cancelButton}
-                  onPress={() => setShowPersonOptions(false)}
-                >
-                  <Text style={styles(colors).cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          {/* Updated person selection overlay */}
+          {renderPersonSelectionOverlay()}
         </View>
       </View>
     </Modal>

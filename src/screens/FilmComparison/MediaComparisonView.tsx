@@ -29,11 +29,10 @@ const MediaComparisonView = () => {
     clearMediaItems,
     reorderMediaItems,
     updateMediaItem,
-    // Keep these for PersonDisplay compatibility for now
-    selectedCastMember1,
-    selectedCastMember2,
-    setSelectedCastMember1,
-    setSelectedCastMember2,
+    // Use array-based cast members
+    selectedCastMembers,
+    addCastMember,
+    updateCastMember,
   } = useFilmContext();
 
   const { saveCurrentMediaComparison } = useSavedSearches();
@@ -246,16 +245,28 @@ const MediaComparisonView = () => {
             setIsPersonCreditsVisible(false);
             setSelectedPerson(null);
           }}
-          // Person selection handlers
+          // Person selection handlers - updated to use array
           onSelectPerson1={(person) => {
-            setSelectedCastMember1(person);
+            // If no cast members, add as first
+            if (selectedCastMembers.length === 0) {
+              addCastMember(person);
+            } else {
+              // Replace first cast member or add if only one exists
+              updateCastMember(0, person);
+            }
           }}
           onSelectPerson2={(person) => {
-            setSelectedCastMember2(person);
+            // If less than 2 cast members, add as new
+            if (selectedCastMembers.length < 2) {
+              addCastMember(person);
+            } else {
+              // Replace second cast member
+              updateCastMember(1, person);
+            }
           }}
-          // Current person selections
-          selectedPerson1={selectedCastMember1}
-          selectedPerson2={selectedCastMember2}
+          // Current person selections - for compatibility
+          selectedPerson1={selectedCastMembers[0] || null}
+          selectedPerson2={selectedCastMembers[1] || null}
         />
       )}
     </View>
