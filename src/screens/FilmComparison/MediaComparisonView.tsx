@@ -8,6 +8,7 @@ import {
   FlatList,
   Text,
   Image,
+  ScrollView,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
@@ -185,44 +186,51 @@ const MediaComparisonView = () => {
 
   return (
     <View style={styles(colors).container}>
-      {/* Media Search */}
-      <FilmSearch onSelectMedia={handleAddMedia} />
+      <ScrollView
+        style={styles(colors).scrollView}
+        contentContainerStyle={styles(colors).scrollContent}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Media Search */}
+        <FilmSearch onSelectMedia={handleAddMedia} />
 
-      {/* Selected Media Items */}
-      {selectedMediaItems.length > 0 && (
-        <View style={styles(colors).selectedMediaSection}>
-          <View style={styles(colors).selectedMediaHeader}>
-            <Text style={styles(colors).selectedMediaTitle}>
-              Selected Media ({selectedMediaItems.length})
-            </Text>
-            <TouchableOpacity
-              style={styles(colors).clearAllButton}
-              onPress={clearMediaItems}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
-              <Text style={styles(colors).clearAllText}>Clear All</Text>
-            </TouchableOpacity>
+        {/* Selected Media Items */}
+        {selectedMediaItems.length > 0 && (
+          <View style={styles(colors).selectedMediaSection}>
+            <View style={styles(colors).selectedMediaHeader}>
+              <Text style={styles(colors).selectedMediaTitle}>
+                Selected Media ({selectedMediaItems.length})
+              </Text>
+              <TouchableOpacity
+                style={styles(colors).clearAllButton}
+                onPress={clearMediaItems}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+                <Text style={styles(colors).clearAllText}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={selectedMediaItems}
+              renderItem={renderSelectedMediaItem}
+              keyExtractor={(item, index) =>
+                `${item.media_type}-${item.id}-${index}`
+              }
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles(colors).mediaList}
+            />
           </View>
-          <FlatList
-            data={selectedMediaItems}
-            renderItem={renderSelectedMediaItem}
-            keyExtractor={(item, index) =>
-              `${item.media_type}-${item.id}-${index}`
-            }
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles(colors).mediaList}
-          />
+        )}
+
+        {/* Actor comparison section - now embedded in ScrollView */}
+        <View style={styles(colors).actorSection}>
+          <ActorDisplay onActorSelect={handlePersonSelect} />
         </View>
-      )}
+      </ScrollView>
 
-      {/* Actor comparison section - this contains the FlatList */}
-      <View style={styles(colors).actorSection}>
-        <ActorDisplay onActorSelect={handlePersonSelect} />
-      </View>
-
-      {/* Floating Save Button */}
+      {/* Floating Save Button - stays outside ScrollView */}
       {shouldShowSaveButton && (
         <>
           <TouchableOpacity
@@ -297,6 +305,12 @@ const styles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: 100, // Add padding to account for floating button
     },
     // New styles for selected media section
     selectedMediaSection: {
@@ -373,10 +387,8 @@ const styles = (colors: any) =>
       padding: 2,
     },
     actorSection: {
-      flex: 1,
-      minHeight: 200,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      // Remove flex: 1 and minHeight to allow natural height
+      // Let it grow based on content
     },
     // Floating Save Button
     floatingSaveButton: {
