@@ -329,32 +329,51 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
                         key={`${castMember.id}-${memberIndex}`}
                         style={styles(colors).character}
                       >
-                        {`${castMember.name}: ${roleInfo}`}
+                        {
+                          selectedCastMembers.length === 1
+                            ? roleInfo // For single person, just show the role
+                            : `${castMember.name}: ${roleInfo}` // For multiple, show name: role
+                        }
                       </Text>
                     );
+                  }
+
+                  // Fallback: try to get role info from the main media properties for this specific cast member
+                  // This handles cases where castMemberRoles might not be populated correctly
+                  if (selectedCastMembers.length === 1) {
+                    // For single cast member, check if the media item has their role info
+                    let fallbackRoleInfo = "";
+
+                    if (media1.character) {
+                      fallbackRoleInfo = `as ${media1.character}`;
+                    } else if (media1.job) {
+                      fallbackRoleInfo = `${media1.job}`;
+                      if (
+                        media1.department &&
+                        media1.department !== media1.job
+                      ) {
+                        fallbackRoleInfo += ` (${media1.department})`;
+                      }
+                    }
+
+                    if (fallbackRoleInfo) {
+                      return (
+                        <Text
+                          key={`${castMember.id}-${memberIndex}-fallback`}
+                          style={styles(colors).character}
+                        >
+                          {fallbackRoleInfo}
+                        </Text>
+                      );
+                    }
                   }
 
                   return null; // Don't render if no role info found
                 })
               ) : (
-                <>
-                  {/* Fallback for when no cast members are selected */}
-                  {media1.character && (
-                    <Text style={styles(colors).character}>
-                      {`as: ${media1.character}`}
-                    </Text>
-                  )}
-                  {media1.job && !media1.character && (
-                    <Text style={styles(colors).character}>
-                      {`job: ${media1.job}`}
-                    </Text>
-                  )}
-                  {media1.department && (
-                    <Text style={styles(colors).department}>
-                      {media1.department}
-                    </Text>
-                  )}
-                </>
+                <Text style={styles(colors).character}>
+                  No cast members selected
+                </Text>
               )}
             </View>
           </View>
