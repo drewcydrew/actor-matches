@@ -8,6 +8,7 @@ import {
   Platform,
   FlatList,
   Image,
+  ScrollView,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import { useFilmContext } from "../../context/FilmContext";
@@ -170,134 +171,144 @@ const PersonComparisonView = () => {
 
   return (
     <View style={styles(colors).container}>
-      {/* Person Search */}
-      <ActorSearch
-        onSelectActor={handleAddPerson}
-        selectedActor={null} // Don't show any single selection
-        defaultQuery="Tom Hanks"
-        performInitialSearch={true}
-      />
-
-      {/* Selected People */}
-      {selectedCastMembers.length > 0 && (
-        <View style={styles(colors).selectedPeopleSection}>
-          <View style={styles(colors).selectedPeopleHeader}>
-            <Text style={styles(colors).selectedPeopleTitle}>
-              Selected People ({selectedCastMembers.length})
-            </Text>
-            <TouchableOpacity
-              style={styles(colors).clearAllButton}
-              onPress={clearCastMembers}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={16} color={colors.error} />
-              <Text style={styles(colors).clearAllText}>Clear All</Text>
-            </TouchableOpacity>
-          </View>
-          <FlatList
-            data={selectedCastMembers}
-            renderItem={renderSelectedPersonItem}
-            keyExtractor={(item, index) => `${item.id}-${index}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles(colors).peopleList}
-          />
-        </View>
-      )}
-
-      <View style={styles(colors).filmSection}>
-        <FilmDisplay
-          onFilmSelect={(media: EnhancedMediaItem) => {
-            // Convert EnhancedMediaItem to MediaItem for the modal
-            const basicMediaItem: MediaItem = {
-              id: media.id,
-              name: media.name,
-              popularity: media.popularity,
-              media_type: media.media_type,
-              poster_path: media.poster_path,
-              ...(media.media_type === "movie"
-                ? {
-                    title: media.title || media.name,
-                    release_date: media.release_date,
-                  }
-                : {
-                    title: media.name,
-                    first_air_date: media.first_air_date,
-                    episode_count: media.episode_count,
-                  }),
-            } as MediaItem;
-
-            setSelectedMediaForCast(basicMediaItem);
-            setIsMediaCastVisible(true);
-          }}
+      <ScrollView
+        style={styles(colors).scrollView}
+        contentContainerStyle={styles(colors).scrollContent}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled={true}
+      >
+        {/* Person Search */}
+        <ActorSearch
+          onSelectActor={handleAddPerson}
+          selectedActor={null} // Don't show any single selection
+          defaultQuery="Tom Hanks"
+          performInitialSearch={true}
         />
 
-        {/* Floating Save Button */}
-        {shouldShowSaveButton && (
-          <>
-            <TouchableOpacity
-              style={[
-                styles(colors).floatingSaveButton,
-                isSaving && styles(colors).disabledButton,
-              ]}
-              onPress={handleSaveSearch}
-              activeOpacity={0.8}
-              disabled={isSaving}
-            >
-              <Ionicons
-                name={isSaving ? "hourglass-outline" : "bookmark-outline"}
-                size={24}
-                color="#fff"
-              />
-              <Text style={styles(colors).saveButtonText}>
-                {isSaving ? "Saving..." : "Save"}
+        {/* Selected People */}
+        {selectedCastMembers.length > 0 && (
+          <View style={styles(colors).selectedPeopleSection}>
+            <View style={styles(colors).selectedPeopleHeader}>
+              <Text style={styles(colors).selectedPeopleTitle}>
+                Selected People ({selectedCastMembers.length})
               </Text>
-            </TouchableOpacity>
-
-            {/* Success Indicator for Web */}
-            {Platform.OS === "web" && showSuccessIndicator && (
-              <View style={styles(colors).successIndicator}>
-                <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                <Text style={styles(colors).successText}>Saved!</Text>
-              </View>
-            )}
-          </>
+              <TouchableOpacity
+                style={styles(colors).clearAllButton}
+                onPress={clearCastMembers}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trash-outline" size={16} color={colors.error} />
+                <Text style={styles(colors).clearAllText}>Clear All</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={selectedCastMembers}
+              renderItem={renderSelectedPersonItem}
+              keyExtractor={(item, index) => `${item.id}-${index}`}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles(colors).peopleList}
+            />
+          </View>
         )}
 
-        {selectedMediaForCast && (
-          <MediaCastModal
-            mediaId={selectedMediaForCast.id}
-            mediaTitle={selectedMediaForCast.name}
-            mediaPosterPath={selectedMediaForCast.poster_path}
-            mediaType={selectedMediaForCast.media_type}
-            isVisible={isMediaCastVisible}
-            onClose={() => {
-              setIsMediaCastVisible(false);
-              setSelectedMediaForCast(null);
+        {/* Film section - now embedded in ScrollView */}
+        <View style={styles(colors).filmSection}>
+          <FilmDisplay
+            onFilmSelect={(media: EnhancedMediaItem) => {
+              // Convert EnhancedMediaItem to MediaItem for the modal
+              const basicMediaItem: MediaItem = {
+                id: media.id,
+                name: media.name,
+                popularity: media.popularity,
+                media_type: media.media_type,
+                poster_path: media.poster_path,
+                ...(media.media_type === "movie"
+                  ? {
+                      title: media.title || media.name,
+                      release_date: media.release_date,
+                    }
+                  : {
+                      title: media.name,
+                      first_air_date: media.first_air_date,
+                      episode_count: media.episode_count,
+                    }),
+              } as MediaItem;
+
+              setSelectedMediaForCast(basicMediaItem);
+              setIsMediaCastVisible(true);
             }}
-            onSelectActor1={(person) => {
-              // Add person if not already selected
-              const isAlreadySelected = selectedCastMembers.some(
-                (p) => p.id === person.id
-              );
-              if (!isAlreadySelected) {
-                addCastMember(person);
-              }
-            }}
-            onSelectActor2={(person) => {
-              // Add person if not already selected
-              const isAlreadySelected = selectedCastMembers.some(
-                (p) => p.id === person.id
-              );
-              if (!isAlreadySelected) {
-                addCastMember(person);
-              }
-            }}
-            selectedActor1={selectedCastMembers[0] || null}
-            selectedActor2={selectedCastMembers[1] || null}
           />
-        )}
-      </View>
+        </View>
+      </ScrollView>
+
+      {/* Floating Save Button - stays outside ScrollView */}
+      {shouldShowSaveButton && (
+        <>
+          <TouchableOpacity
+            style={[
+              styles(colors).floatingSaveButton,
+              isSaving && styles(colors).disabledButton,
+            ]}
+            onPress={handleSaveSearch}
+            activeOpacity={0.8}
+            disabled={isSaving}
+          >
+            <Ionicons
+              name={isSaving ? "hourglass-outline" : "bookmark-outline"}
+              size={24}
+              color="#fff"
+            />
+            <Text style={styles(colors).saveButtonText}>
+              {isSaving ? "Saving..." : "Save"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Success Indicator for Web */}
+          {Platform.OS === "web" && showSuccessIndicator && (
+            <View style={styles(colors).successIndicator}>
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles(colors).successText}>Saved!</Text>
+            </View>
+          )}
+        </>
+      )}
+
+      {/* Modal - stays outside ScrollView */}
+      {selectedMediaForCast && (
+        <MediaCastModal
+          mediaId={selectedMediaForCast.id}
+          mediaTitle={selectedMediaForCast.name}
+          mediaPosterPath={selectedMediaForCast.poster_path}
+          mediaType={selectedMediaForCast.media_type}
+          isVisible={isMediaCastVisible}
+          onClose={() => {
+            setIsMediaCastVisible(false);
+            setSelectedMediaForCast(null);
+          }}
+          onSelectActor1={(person) => {
+            // Add person if not already selected
+            const isAlreadySelected = selectedCastMembers.some(
+              (p) => p.id === person.id
+            );
+            if (!isAlreadySelected) {
+              addCastMember(person);
+            }
+          }}
+          onSelectActor2={(person) => {
+            // Add person if not already selected
+            const isAlreadySelected = selectedCastMembers.some(
+              (p) => p.id === person.id
+            );
+            if (!isAlreadySelected) {
+              addCastMember(person);
+            }
+          }}
+          selectedActor1={selectedCastMembers[0] || null}
+          selectedActor2={selectedCastMembers[1] || null}
+        />
+      )}
     </View>
   );
 };
@@ -306,6 +317,12 @@ const styles = (colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: 100, // Add padding for floating button
     },
     // New styles for selected people section
     selectedPeopleSection: {
@@ -394,10 +411,8 @@ const styles = (colors: any) =>
       padding: 2,
     },
     filmSection: {
-      flex: 1,
-      minHeight: 300,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
+      // Remove flex: 1 and minHeight to allow natural height
+      // Let it grow based on content
     },
     // Floating Save Button
     floatingSaveButton: {

@@ -3,7 +3,6 @@ import {
   StyleSheet,
   Text,
   View,
-  FlatList,
   TouchableOpacity,
   ActivityIndicator,
   Alert,
@@ -11,6 +10,7 @@ import {
   Modal,
   Image,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
 import {
@@ -358,9 +358,10 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
     }
   };
 
-  // Render search item
-  const renderSearchItem = ({ item }: { item: SavedSearch }) => (
+  // Render search item - converted from FlatList renderItem to regular function
+  const renderSearchItem = (item: SavedSearch, index: number) => (
     <TouchableOpacity
+      key={item.id}
       style={styles(colors).searchItem}
       onPress={() => handleLoadSearch(item)}
       activeOpacity={0.7}
@@ -447,148 +448,155 @@ const SavedSearchesView = ({ onNavigateToTab }: SavedSearchesViewProps) => {
 
   return (
     <View style={styles(colors).container}>
-      {/* Header */}
-      <View style={styles(colors).header}>
-        <Text style={styles(colors).title}>Saved Searches</Text>
-        {savedSearches.length > 0 && (
-          <TouchableOpacity
-            style={styles(colors).clearAllButton}
-            onPress={handleClearAll}
-          >
-            <Ionicons name="trash-outline" size={16} color={colors.error} />
-            <Text style={styles(colors).clearAllText}>Clear All</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Search and filters */}
-      {savedSearches.length > 0 && (
-        <View style={styles(colors).controlsContainer}>
-          {/* Search input */}
-          <View style={styles(colors).searchContainer}>
-            <Ionicons name="search" size={16} color={colors.textSecondary} />
-            <TextInput
-              style={styles(colors).searchInput}
-              placeholder="Search saved searches..."
-              placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <Ionicons
-                  name="close-circle"
-                  size={16}
-                  color={colors.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Type filter */}
-          <View style={styles(colors).filterContainer}>
+      <ScrollView
+        style={styles(colors).scrollView}
+        contentContainerStyle={styles(colors).scrollContent}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <View style={styles(colors).header}>
+          <Text style={styles(colors).title}>Saved Searches</Text>
+          {savedSearches.length > 0 && (
             <TouchableOpacity
-              style={[
-                styles(colors).filterButton,
-                filterType === "all" && styles(colors).activeFilterButton,
-              ]}
-              onPress={() => setFilterType("all")}
+              style={styles(colors).clearAllButton}
+              onPress={handleClearAll}
             >
-              <Text
-                style={[
-                  styles(colors).filterButtonText,
-                  filterType === "all" && styles(colors).activeFilterText,
-                ]}
-              >
-                All ({savedSearches.length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles(colors).filterButton,
-                filterType === "media" && styles(colors).activeFilterButton,
-              ]}
-              onPress={() => setFilterType("media")}
-            >
-              <Text
-                style={[
-                  styles(colors).filterButtonText,
-                  filterType === "media" && styles(colors).activeFilterText,
-                ]}
-              >
-                Media ({getSearchesByType("media").length})
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles(colors).filterButton,
-                filterType === "person" && styles(colors).activeFilterButton,
-              ]}
-              onPress={() => setFilterType("person")}
-            >
-              <Text
-                style={[
-                  styles(colors).filterButtonText,
-                  filterType === "person" && styles(colors).activeFilterText,
-                ]}
-              >
-                People ({getSearchesByType("person").length})
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Error message - show both context error and local error */}
-      {(error || localError) && (
-        <View style={styles(colors).errorContainer}>
-          <Text style={styles(colors).errorText}>{error || localError}</Text>
-          {localError && (
-            <TouchableOpacity
-              style={styles(colors).dismissErrorButton}
-              onPress={() => setLocalError(null)}
-            >
-              <Text style={styles(colors).dismissErrorText}>Dismiss</Text>
+              <Ionicons name="trash-outline" size={16} color={colors.error} />
+              <Text style={styles(colors).clearAllText}>Clear All</Text>
             </TouchableOpacity>
           )}
         </View>
-      )}
 
-      {/* Content */}
-      {filteredSearches.length > 0 ? (
-        <FlatList
-          data={filteredSearches}
-          renderItem={renderSearchItem}
-          keyExtractor={(item) => item.id}
-          style={styles(colors).list}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <View style={styles(colors).emptyContainer}>
-          <Ionicons
-            name="bookmark-outline"
-            size={64}
-            color={colors.textSecondary}
-            style={styles(colors).emptyIcon}
-          />
-          <Text style={styles(colors).emptyTitle}>
-            {savedSearches.length === 0
-              ? "No Saved Searches"
-              : searchQuery.trim()
-              ? "No matches found"
-              : `No ${filterType} searches`}
-          </Text>
-          <Text style={styles(colors).emptyDescription}>
-            {savedSearches.length === 0
-              ? "Save your media or person comparisons to access them quickly later."
-              : searchQuery.trim()
-              ? "Try adjusting your search terms or filters."
-              : "Try selecting a different filter or clearing your search."}
-          </Text>
-        </View>
-      )}
+        {/* Search and filters */}
+        {savedSearches.length > 0 && (
+          <View style={styles(colors).controlsContainer}>
+            {/* Search input */}
+            <View style={styles(colors).searchContainer}>
+              <Ionicons name="search" size={16} color={colors.textSecondary} />
+              <TextInput
+                style={styles(colors).searchInput}
+                placeholder="Search saved searches..."
+                placeholderTextColor={colors.textSecondary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchQuery("")}>
+                  <Ionicons
+                    name="close-circle"
+                    size={16}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Type filter */}
+            <View style={styles(colors).filterContainer}>
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterType === "all" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterType("all")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterType === "all" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  All ({savedSearches.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterType === "media" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterType("media")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterType === "media" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  Media ({getSearchesByType("media").length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles(colors).filterButton,
+                  filterType === "person" && styles(colors).activeFilterButton,
+                ]}
+                onPress={() => setFilterType("person")}
+              >
+                <Text
+                  style={[
+                    styles(colors).filterButtonText,
+                    filterType === "person" && styles(colors).activeFilterText,
+                  ]}
+                >
+                  People ({getSearchesByType("person").length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Error message - show both context error and local error */}
+        {(error || localError) && (
+          <View style={styles(colors).errorContainer}>
+            <Text style={styles(colors).errorText}>{error || localError}</Text>
+            {localError && (
+              <TouchableOpacity
+                style={styles(colors).dismissErrorButton}
+                onPress={() => setLocalError(null)}
+              >
+                <Text style={styles(colors).dismissErrorText}>Dismiss</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Content - replaced FlatList with mapped items */}
+        {filteredSearches.length > 0 ? (
+          <View style={styles(colors).searchListContainer}>
+            {filteredSearches.map((item, index) =>
+              renderSearchItem(item, index)
+            )}
+          </View>
+        ) : (
+          <View style={styles(colors).emptyContainer}>
+            <Ionicons
+              name="bookmark-outline"
+              size={64}
+              color={colors.textSecondary}
+              style={styles(colors).emptyIcon}
+            />
+            <Text style={styles(colors).emptyTitle}>
+              {savedSearches.length === 0
+                ? "No Saved Searches"
+                : searchQuery.trim()
+                ? "No matches found"
+                : `No ${filterType} searches`}
+            </Text>
+            <Text style={styles(colors).emptyDescription}>
+              {savedSearches.length === 0
+                ? "Save your media or person comparisons to access them quickly later."
+                : searchQuery.trim()
+                ? "Try adjusting your search terms or filters."
+                : "Try selecting a different filter or clearing your search."}
+            </Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* All modals stay outside ScrollView */}
 
       {/* Delete Confirmation Modal */}
       <Modal
@@ -781,6 +789,12 @@ const styles = (colors: any) =>
       flex: 1,
       backgroundColor: colors.background,
     },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: 20, // Add some bottom padding
+    },
     centerContainer: {
       flex: 1,
       justifyContent: "center",
@@ -878,8 +892,9 @@ const styles = (colors: any) =>
       color: colors.error,
       textAlign: "center",
     },
-    list: {
-      flex: 1,
+    // New container for search list items
+    searchListContainer: {
+      // Remove flex: 1 to allow natural sizing
     },
     searchItem: {
       flexDirection: "row",
@@ -945,6 +960,7 @@ const styles = (colors: any) =>
       justifyContent: "center",
       alignItems: "center",
       padding: 32,
+      minHeight: 300, // Ensure minimum height for proper centering
     },
     emptyIcon: {
       marginBottom: 16,

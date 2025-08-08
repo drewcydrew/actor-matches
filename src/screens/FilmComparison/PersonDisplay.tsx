@@ -34,6 +34,11 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingAll, setIsLoadingAll] = useState(false);
+  const ITEMS_PER_PAGE = 20; // Adjust based on your needs
+
   // Memoize the filtered people to avoid recalculating on every render
   const filteredPeople = useMemo(() => {
     if (!castMembers || castMembers.length === 0) {
@@ -49,6 +54,28 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
     }
     return [];
   }, [castMembers, filterMode]);
+
+  // Paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = 0;
+    const endIndex = currentPage * ITEMS_PER_PAGE;
+    return filteredPeople.slice(startIndex, endIndex);
+  }, [filteredPeople, currentPage]);
+
+  // Calculate pagination info
+  const paginationInfo = useMemo(() => {
+    const totalItems = filteredPeople.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    const hasMore = currentPage < totalPages;
+    const showingCount = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+
+    return {
+      totalItems,
+      totalPages,
+      hasMore,
+      showingCount,
+    };
+  }, [filteredPeople.length, currentPage]);
 
   // Memoize person counts to avoid recalculating
   const personCounts = useMemo(() => {
@@ -69,14 +96,36 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
     };
   }, [castMembers]);
 
+  // Reset pagination when filter changes
+  const handleFilterChange = useCallback((mode: FilterMode) => {
+    setFilterMode(mode);
+    setCurrentPage(1); // Reset to first page
+  }, []);
+
+  // Load more items
+  const loadMore = useCallback(() => {
+    if (paginationInfo.hasMore) {
+      setCurrentPage((prev) => prev + 1);
+    }
+  }, [paginationInfo.hasMore]);
+
+  // Load all remaining items
+  const loadAll = useCallback(async () => {
+    if (paginationInfo.hasMore) {
+      setIsLoadingAll(true);
+      // Small delay to show loading state
+      setTimeout(() => {
+        setCurrentPage(paginationInfo.totalPages);
+        setIsLoadingAll(false);
+      }, 300);
+    }
+  }, [paginationInfo.hasMore, paginationInfo.totalPages]);
+
   // Memoize callbacks to prevent unnecessary re-renders
   const handleClearMedia = useCallback(() => {
     clearMediaItems();
+    setCurrentPage(1); // Reset pagination
   }, [clearMediaItems]);
-
-  const handleFilterChange = useCallback((mode: FilterMode) => {
-    setFilterMode(mode);
-  }, []);
 
   const handleActorPress = useCallback(
     (person: Person) => {
@@ -266,6 +315,74 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
     [colors, selectedMediaItems, handleActorPress, onActorSelect]
   );
 
+  // Render footer with load more and load all buttons
+  const renderFooter = useCallback(() => {
+    if (paginatedData.length === 0) return null;
+
+    const remainingItems =
+      paginationInfo.totalItems - paginationInfo.showingCount;
+
+    return (
+      <View style={styles(colors).footerContainer}>
+        <Text style={styles(colors).paginationInfo}>
+          Showing {paginationInfo.showingCount} of {paginationInfo.totalItems}{" "}
+          results
+        </Text>
+
+        {paginationInfo.hasMore && (
+          <View style={styles(colors).buttonContainer}>
+            <TouchableOpacity
+              style={[
+                styles(colors).loadMoreButton,
+                isLoadingAll && styles(colors).disabledButton,
+              ]}
+              onPress={loadMore}
+              activeOpacity={0.7}
+              disabled={isLoadingAll}
+            >
+              <Text style={styles(colors).loadMoreText}>
+                Load More ({Math.min(ITEMS_PER_PAGE, remainingItems)})
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles(colors).loadAllButton,
+                isLoadingAll && styles(colors).loadingAllButton,
+              ]}
+              onPress={loadAll}
+              activeOpacity={0.7}
+              disabled={isLoadingAll}
+            >
+              {isLoadingAll ? (
+                <>
+                  <ActivityIndicator size={16} color="#fff" />
+                  <Text style={styles(colors).loadAllText}>Loading...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles(colors).loadAllText}>
+                    Load All ({remainingItems})
+                  </Text>
+                  <Ionicons name="download-outline" size={16} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }, [
+    paginatedData.length,
+    paginationInfo,
+    loadMore,
+    loadAll,
+    colors,
+    isLoadingAll,
+    ITEMS_PER_PAGE,
+  ]);
+
   // Get appropriate media type text
   const getMediaTypeText = (mediaItem: any) => {
     if (!mediaItem) return "";
@@ -387,7 +504,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
             </Text>
           ) : (
             <FlatList
-              data={filteredPeople}
+              data={paginatedData}
               renderItem={renderPersonItem}
               keyExtractor={keyExtractor}
               removeClippedSubviews={true}
@@ -395,6 +512,9 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
               updateCellsBatchingPeriod={50}
               initialNumToRender={10}
               windowSize={10}
+              scrollEnabled={false} // Disable scrolling since parent handles it
+              ListFooterComponent={renderFooter}
+              contentContainerStyle={styles(colors).listContent}
             />
           )}
         </View>
@@ -403,11 +523,10 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
   );
 };
 
-// Updated styles with combined role support
+// Updated styles with pagination support
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
-      flex: 1,
       padding: 8,
       width: "100%",
       backgroundColor: colors.background,
@@ -508,7 +627,8 @@ const styles = (colors: any) =>
       marginLeft: 4,
     },
     castContainer: {
-      flex: 1,
+      // Remove flex: 1 to allow natural sizing
+      minHeight: 200,
     },
     actorItem: {
       borderBottomWidth: 1,
@@ -563,17 +683,74 @@ const styles = (colors: any) =>
       color: colors.textSecondary,
       fontSize: 14,
     },
-    list: {
-      flex: 1,
-    },
     roleSection: {
       marginTop: 2,
     },
-    additionalCredits: {
-      fontSize: 11,
+    // Pagination styles
+    footerContainer: {
+      padding: 16,
+      alignItems: "center",
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginTop: 8,
+    },
+    paginationInfo: {
+      fontSize: 12,
       color: colors.textSecondary,
-      fontStyle: "italic",
-      marginTop: 2,
+      marginBottom: 12,
+      textAlign: "center",
+    },
+    buttonContainer: {
+      flexDirection: "row",
+      gap: 12,
+      width: "100%",
+      justifyContent: "center",
+    },
+    loadMoreButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      flex: 1,
+      maxWidth: 150,
+      justifyContent: "center",
+    },
+    loadMoreText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: "500",
+      marginRight: 4,
+    },
+    loadAllButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      flex: 1,
+      maxWidth: 150,
+      justifyContent: "center",
+    },
+    loadAllText: {
+      fontSize: 14,
+      color: "#fff",
+      fontWeight: "500",
+      marginRight: 4,
+    },
+    loadingAllButton: {
+      backgroundColor: colors.primary,
+      opacity: 0.8,
+    },
+    disabledButton: {
+      opacity: 0.5,
+    },
+    listContent: {
+      paddingBottom: 8,
     },
   });
 

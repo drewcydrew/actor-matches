@@ -9,9 +9,9 @@ import {
   FlatList,
 } from "react-native";
 import { useTheme } from "../../context/ThemeContext";
-import { useFilmContext } from "../../context/FilmContext"; // Remove the convertCommonMediaToMediaItem import
+import { useFilmContext } from "../../context/FilmContext";
 import { Ionicons } from "@expo/vector-icons";
-import { MediaItem, EnhancedMediaItem } from "../../types/types"; // Remove CommonMediaItem import
+import { MediaItem, EnhancedMediaItem } from "../../types/types";
 
 // Define filter type
 type FilterMode = "all" | "movies" | "tv";
@@ -33,6 +33,11 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingAll, setIsLoadingAll] = useState(false);
+  const ITEMS_PER_PAGE = 20; // Adjust based on your needs
+
   // Memoize filtered media to avoid recalculating on every render
   const filteredMedia = useMemo(() => {
     if (!commonMedia || commonMedia.length === 0) {
@@ -48,6 +53,28 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
     }
     return [];
   }, [commonMedia, filterMode]);
+
+  // Paginated data
+  const paginatedData = useMemo(() => {
+    const startIndex = 0;
+    const endIndex = currentPage * ITEMS_PER_PAGE;
+    return filteredMedia.slice(startIndex, endIndex);
+  }, [filteredMedia, currentPage]);
+
+  // Calculate pagination info
+  const paginationInfo = useMemo(() => {
+    const totalItems = filteredMedia.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    const hasMore = currentPage < totalPages;
+    const showingCount = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+
+    return {
+      totalItems,
+      totalPages,
+      hasMore,
+      showingCount,
+    };
+  }, [filteredMedia.length, currentPage]);
 
   // Memoize media counts
   const mediaCounts = useMemo(() => {
@@ -66,14 +93,36 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
     };
   }, [commonMedia]);
 
+  // Reset pagination when filter changes
+  const handleFilterChange = useCallback((mode: FilterMode) => {
+    setFilterMode(mode);
+    setCurrentPage(1); // Reset to first page
+  }, []);
+
+  // Load more items
+  const loadMore = useCallback(() => {
+    if (paginationInfo.hasMore) {
+      setCurrentPage((prev) => prev + 1);
+    }
+  }, [paginationInfo.hasMore]);
+
+  // Load all remaining items
+  const loadAll = useCallback(async () => {
+    if (paginationInfo.hasMore) {
+      setIsLoadingAll(true);
+      // Small delay to show loading state
+      setTimeout(() => {
+        setCurrentPage(paginationInfo.totalPages);
+        setIsLoadingAll(false);
+      }, 300);
+    }
+  }, [paginationInfo.hasMore, paginationInfo.totalPages]);
+
   // Memoize callbacks
   const handleClearActors = useCallback(() => {
     clearCastMembers();
+    setCurrentPage(1); // Reset pagination
   }, [clearCastMembers]);
-
-  const handleFilterChange = useCallback((mode: FilterMode) => {
-    setFilterMode(mode);
-  }, []);
 
   const handleMediaPress = useCallback(
     (media: EnhancedMediaItem) => {
@@ -107,7 +156,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
     []
   );
 
-  // Add a new function to get role type badge with combined role support - update parameter type
+  // Add a new function to get role type badge with combined role support
   const getRoleTypeBadge = (media: EnhancedMediaItem) => {
     // Check if the media item has a roles array (from aggregated data)
     const roles = (media as any).roles || [];
@@ -270,6 +319,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
 
       return (
         <TouchableOpacity
+          key={`${media1.id}-${index}`}
           style={[
             styles(colors).mediaItem,
             isTVShow ? styles(colors).tvItem : styles(colors).movieItem,
@@ -383,6 +433,74 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
     [colors, selectedCastMembers, getYear, handleMediaPress, onFilmSelect]
   );
 
+  // Render footer with load more and load all buttons
+  const renderFooter = useCallback(() => {
+    if (paginatedData.length === 0) return null;
+
+    const remainingItems =
+      paginationInfo.totalItems - paginationInfo.showingCount;
+
+    return (
+      <View style={styles(colors).footerContainer}>
+        <Text style={styles(colors).paginationInfo}>
+          Showing {paginationInfo.showingCount} of {paginationInfo.totalItems}{" "}
+          results
+        </Text>
+
+        {paginationInfo.hasMore && (
+          <View style={styles(colors).buttonContainer}>
+            <TouchableOpacity
+              style={[
+                styles(colors).loadMoreButton,
+                isLoadingAll && styles(colors).disabledButton,
+              ]}
+              onPress={loadMore}
+              activeOpacity={0.7}
+              disabled={isLoadingAll}
+            >
+              <Text style={styles(colors).loadMoreText}>
+                Load More ({Math.min(ITEMS_PER_PAGE, remainingItems)})
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles(colors).loadAllButton,
+                isLoadingAll && styles(colors).loadingAllButton,
+              ]}
+              onPress={loadAll}
+              activeOpacity={0.7}
+              disabled={isLoadingAll}
+            >
+              {isLoadingAll ? (
+                <>
+                  <ActivityIndicator size={16} color="#fff" />
+                  <Text style={styles(colors).loadAllText}>Loading...</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles(colors).loadAllText}>
+                    Load All ({remainingItems})
+                  </Text>
+                  <Ionicons name="download-outline" size={16} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }, [
+    paginatedData.length,
+    paginationInfo,
+    loadMore,
+    loadAll,
+    colors,
+    isLoadingAll,
+    ITEMS_PER_PAGE,
+  ]);
+
   // Update title text to work with variable number of cast members
   const getTitleText = () => {
     const castCount = selectedCastMembers.length;
@@ -431,7 +549,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "all" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("all")}
+            onPress={() => handleFilterChange("all")}
           >
             <Text
               style={[
@@ -448,7 +566,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "movies" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("movies")}
+            onPress={() => handleFilterChange("movies")}
           >
             <Text
               style={[
@@ -465,7 +583,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
               styles(colors).filterButton,
               filterMode === "tv" && styles(colors).activeFilterButton,
             ]}
-            onPress={() => setFilterMode("tv")}
+            onPress={() => handleFilterChange("tv")}
           >
             <Text
               style={[
@@ -505,7 +623,7 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
             </Text>
           ) : (
             <FlatList
-              data={filteredMedia}
+              data={paginatedData}
               renderItem={renderMediaItem}
               keyExtractor={keyExtractor}
               removeClippedSubviews={true}
@@ -513,6 +631,9 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
               updateCellsBatchingPeriod={50}
               initialNumToRender={10}
               windowSize={10}
+              scrollEnabled={false} // Disable scrolling since parent handles it
+              ListFooterComponent={renderFooter}
+              contentContainerStyle={styles(colors).listContent}
             />
           )}
         </View>
@@ -524,7 +645,6 @@ const MediaDisplay = ({ onFilmSelect }: MediaDisplayProps) => {
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
-      flex: 1,
       padding: 8,
       width: "100%",
       backgroundColor: colors.background,
@@ -606,7 +726,8 @@ const styles = (colors: any) =>
     },
     // Media container
     mediaContainer: {
-      flex: 1,
+      // Remove flex: 1 to allow natural sizing
+      minHeight: 200,
     },
     mediaItem: {
       padding: 8,
@@ -699,6 +820,72 @@ const styles = (colors: any) =>
       flexDirection: "row",
       alignItems: "center",
       marginLeft: 8,
+    },
+    // Pagination styles
+    footerContainer: {
+      padding: 16,
+      alignItems: "center",
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      marginTop: 8,
+    },
+    paginationInfo: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 12,
+      textAlign: "center",
+    },
+    buttonContainer: {
+      flexDirection: "row",
+      gap: 12,
+      width: "100%",
+      justifyContent: "center",
+    },
+    loadMoreButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: colors.surface,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      flex: 1,
+      maxWidth: 150,
+      justifyContent: "center",
+    },
+    loadMoreText: {
+      fontSize: 14,
+      color: colors.primary,
+      fontWeight: "500",
+      marginRight: 4,
+    },
+    loadAllButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      backgroundColor: colors.primary,
+      borderRadius: 20,
+      flex: 1,
+      maxWidth: 150,
+      justifyContent: "center",
+    },
+    loadAllText: {
+      fontSize: 14,
+      color: "#fff",
+      fontWeight: "500",
+      marginRight: 4,
+    },
+    loadingAllButton: {
+      backgroundColor: colors.primary,
+      opacity: 0.8,
+    },
+    disabledButton: {
+      opacity: 0.5,
+    },
+    listContent: {
+      paddingBottom: 8,
     },
   });
 
