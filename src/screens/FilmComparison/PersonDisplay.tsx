@@ -386,14 +386,16 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
                 : "No cast information available"}
             </Text>
           ) : (
-            // Remove FlatList and replace with direct mapping for better scroll integration
-            <>
-              {filteredPeople.map((item, index) => (
-                <View key={keyExtractor(item, index)}>
-                  {renderPersonItem({ item, index })}
-                </View>
-              ))}
-            </>
+            <FlatList
+              data={filteredPeople}
+              renderItem={renderPersonItem}
+              keyExtractor={keyExtractor}
+              removeClippedSubviews={true}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={50}
+              initialNumToRender={10}
+              windowSize={10}
+            />
           )}
         </View>
       )}
@@ -405,7 +407,7 @@ const PersonDisplay = ({ onActorSelect }: PersonDisplayProps) => {
 const styles = (colors: any) =>
   StyleSheet.create({
     container: {
-      //flex: 1,
+      flex: 1,
       padding: 8,
       width: "100%",
       backgroundColor: colors.background,
