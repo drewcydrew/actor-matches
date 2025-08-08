@@ -336,6 +336,7 @@ const styles = (colors: any) =>
     },
     mediaItemContainer: {
       width: 160,
+      minHeight: 160,
       backgroundColor: colors.surface,
       borderRadius: 8,
       padding: 8,

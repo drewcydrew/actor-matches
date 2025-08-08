@@ -346,6 +346,7 @@ const styles = (colors: any) =>
     personItemContainer: {
       width: 120,
       backgroundColor: colors.surface,
+      minHeight: 140,
       borderRadius: 8,
       padding: 8,
       borderWidth: 1,
